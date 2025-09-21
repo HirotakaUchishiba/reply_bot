@@ -82,3 +82,4 @@ wheels/
 
 # AWS
 .aws/
+.obsidian/workspace.json
