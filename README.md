@@ -75,7 +75,7 @@ OpenAIを活用し、顧客からのEメール問い合わせへの返信業務�
 
 GitHub Actionsを用いたCI/CDパイプラインも定義されており、リポジトリへのプッシュをトリガーに自動でテストとデプロイが実行されます。
 
-![デプロイ成功画面](images/deployment-success.png)
+![送信完了メッセージ](images/reply-complete-notification.png)
 
 -----
 

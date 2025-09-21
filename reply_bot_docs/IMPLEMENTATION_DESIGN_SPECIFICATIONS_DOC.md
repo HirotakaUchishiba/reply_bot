@@ -264,7 +264,7 @@ sequenceDiagram
 
   
 
-システムの起点となるEメール受信パイプラインと、非同期処理の回復力を保証するLambda設定を定義します 1。
+システムの起点となるEメール受信パイプラインと、非同期処理の回復力を保証するLambda設定を定義します。なお、SESの受信（Inbound）は対応リージョンが限定されます。受信対応リージョンにReceipt Rule/Lambdaを配置し、他リージョンのコンポーネントと連携が必要な場合はSQS/SNS等を介して橋渡しします 1。
 
 - AWS SES: 送信元ドメインの認証（DKIM）を行い、特定の宛先への受信メールをLambda関数に非同期（InvocationType: "Event"）で転送するための受信ルール（Receipt Rule）を設定します。非同期呼び出しは、SESがLambdaサービスにイベントをハンドオフし、Lambda側でリトライ処理を管理できるため、回復力の観点から重要です。
     
@@ -294,6 +294,20 @@ resource "aws_ses_receipt_rule" "email_to_lambda_rule" {
     invocation_type = "Event" # 非同期呼び出し  
   }  
 }  
+
+# SES 受信ルールセット（存在しない場合は作成）
+resource "aws_ses_receipt_rule_set" "default" {
+  rule_set_name = "default-rule-set"
+}
+
+# SESからLambda呼び出しを許可
+resource "aws_lambda_permission" "allow_ses_invoke" {
+  statement_id  = "AllowExecutionFromSES"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.main_handler.function_name
+  principal     = "ses.amazonaws.com"
+  source_arn    = aws_ses_receipt_rule.email_to_lambda_rule.arn
+}
   
 # Lambda関数の定義  
 resource "aws_lambda_function" "main_handler" {  
@@ -345,13 +359,39 @@ resource "aws_iam_role" "lambda_execution_role" {
   
 resource "aws_iam_policy" "lambda_permissions" {  
   name   = "SlackAIBotLambdaPermissions"  
-  policy = jsonencode({  
-    Version   = "2012-10-17",  
-    Statement =, Resource = aws_dynamodb_table.slack_ai_bot_table.arn },  
-      { Effect = "Allow", Action = "secretsmanager:GetSecretValue", Resource = aws_secretsmanager_secret.openai_api_key.arn },  
-      { Effect = "Allow", Action = "ses:SendEmail", Resource = "*" }  
-    ]  
-  })  
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : ["dynamodb:PutItem", "dynamodb:GetItem"],
+        "Resource" : aws_dynamodb_table.slack_ai_bot_table.arn
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : ["secretsmanager:GetSecretValue"],
+        "Resource" : [
+          aws_secretsmanager_secret.openai_api_key.arn,
+          aws_secretsmanager_secret.slack_bot_token.arn,
+          aws_secretsmanager_secret.slack_signing_secret.arn
+        ]
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : ["ses:SendEmail"],
+        "Resource" : "*"
+      }
+    ]
+  })  
 }  
   
 resource "aws_iam_role_policy_attachment" "lambda_attach" {  
