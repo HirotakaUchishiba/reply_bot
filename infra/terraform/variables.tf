@@ -20,4 +20,16 @@ variable "tf_state_dynamodb_table" {
   description = "DynamoDB table for Terraform state locking"
 }
 
+variable "ddb_table_name" {
+  type        = string
+  description = "DynamoDB table name for workflow context (default derived from workspace if empty)"
+  default     = ""
+}
+
+variable "ddb_ttl_attribute" {
+  type        = string
+  description = "TTL attribute name for DynamoDB items"
+  default     = ""
+}
+
 
