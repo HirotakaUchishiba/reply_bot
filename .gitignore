@@ -1,3 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Terraform
+.terraform/
+.terraform.*
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars
+*.auto.tfvars
+
+# Local env/config
+.env
+.env.*
+.DS_Store
 # Obsidian
 .obsidian/
 
