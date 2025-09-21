@@ -65,6 +65,18 @@ data "aws_iam_policy_document" "lambda_app_policy" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid = "SQS"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl"
+    ]
+    resources = [
+      aws_sqs_queue.dlq.arn
+    ]
+  }
 }
 
 resource "aws_iam_policy" "lambda_app" {
