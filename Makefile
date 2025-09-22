@@ -17,3 +17,8 @@ tf-apply:
 tf-destroy:
 	cd $(TF_DIR) && terraform destroy -auto-approve
 
+.PHONY: layer-presidio
+layer-presidio:
+	pip install -q presidio-analyzer presidio-anonymizer -t layers/presidio/python/lib/python3.11/site-packages
+	cd $(TF_DIR) && terraform fmt -recursive
+
