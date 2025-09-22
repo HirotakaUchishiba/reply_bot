@@ -54,7 +54,10 @@ data "aws_iam_policy_document" "lambda_app_policy" {
     actions = [
       "secretsmanager:GetSecretValue"
     ]
-    resources = ["*"]
+    resources = [
+      aws_secretsmanager_secret.openai_api_key.arn,
+      aws_secretsmanager_secret.slack_app.arn
+    ]
   }
 
   statement {
