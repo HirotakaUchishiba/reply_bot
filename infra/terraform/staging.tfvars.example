@@ -1,0 +1,18 @@
+aws_region = "ap-northeast-1"
+
+tf_state_bucket         = "<your-terraform-state-bucket>"
+tf_state_key_prefix     = "reply-bot"
+tf_state_dynamodb_table = "<your-terraform-locks-table>"
+
+ddb_table_name      = "reply-bot-context-staging"
+ddb_ttl_attribute   = "ttl_epoch"
+
+secret_name_openai_api_key = "reply-bot/stg/openai/api-key"
+secret_name_slack_app      = "reply-bot/stg/slack/app-creds"
+
+ses_rule_set_name = "reply-bot-staging"
+ses_recipients    = ["support@example.com"]
+
+alarm_lambda_error_threshold = 1
+alarm_apigw_5xx_threshold    = 1
+
