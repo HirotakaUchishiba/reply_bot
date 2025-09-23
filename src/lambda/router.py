@@ -11,6 +11,8 @@ from common.logging import log_error, log_info
 from common.secrets import resolve_slack_credentials
 from slack.signature import verify_slack_signature
 from slack.client import SlackClient, build_ai_reply_modal
+from common.dynamodb_repo import get_context_item
+from common.ses_email import send_email
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,7 +105,9 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     slack = SlackClient(bot_token)
                     view = build_ai_reply_modal(
                         context_id=context_id or "",
-                        initial_text="ここにAIが生成した返信文案が表示されます。",
+                        initial_text=(
+                            "ここにAIが生成した返信文案が表示されます。"
+                        ),
                     )
                     slack.open_modal(trigger_id=trigger_id, view=view)
                 except Exception as exc:
@@ -111,11 +115,69 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(200, {"ack": True})
         if event_type == "view_submission":
             log_info("received view_submission")
+            # Extract context_id from private_metadata
+            private_metadata = body_json.get("view", {}).get(
+                "private_metadata", "{}"
+            )
+            try:
+                meta = json.loads(private_metadata)
+            except Exception:
+                meta = {}
+            context_id = meta.get("context_id", "")
+
+            # Extract edited text
+            values = body_json.get("view", {}).get("state", {}).get(
+                "values", {}
+            )
+            edited_text = (
+                values.get("editable_reply_block", {})
+                .get("editable_reply_input", {})
+                .get("value", "")
+            )
+
+            # Fetch context from DDB
+            item = get_context_item(context_id) if context_id else None
+            if not item:
+                log_error(
+                    "context not found or missing", context_id=context_id
+                )
+                return _response(200, {"response_action": "clear"})
+
+            recipient = item.get("sender_email") or item.get("to") or ""
+            subject = item.get("subject") or ""
+
+            # Send email via SES
+            try:
+                send_email(
+                    sender=cfg.sender_email_address,
+                    to_addresses=[recipient],
+                    subject=subject,
+                    body=edited_text,
+                )
+            except Exception as exc:
+                log_error("ses send_email failed", error=str(exc))
+
+            # Post Slack confirmation
+            try:
+                bot_token = (
+                    resolve_slack_credentials(
+                        cfg.slack_signing_secret_arn,
+                        cfg.slack_app_secret_arn,
+                    ).get("bot_token", "")
+                )
+                if bot_token and cfg.slack_channel_id:
+                    SlackClient(bot_token).post_message(
+                        channel=cfg.slack_channel_id,
+                        text="返信が完了しました",
+                    )
+            except Exception as exc:
+                log_error(
+                    "slack post confirmation failed", error=str(exc)
+                )
+
             return _response(200, {"response_action": "clear"})
 
-        log_error(
-            "unknown slack event type", event_type=str(event_type)
-        )
+        log_error("unknown slack event type", event_type=str(event_type))
         return _response(400, {"error": "unsupported"})
 
     # SES (S3/SES event) path - placeholder
