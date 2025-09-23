@@ -46,7 +46,9 @@ data "aws_iam_policy_document" "lambda_app_policy" {
       "dynamodb:Query",
       "dynamodb:Scan"
     ]
-    resources = ["*"]
+    resources = [
+      aws_dynamodb_table.context.arn
+    ]
   }
 
   statement {

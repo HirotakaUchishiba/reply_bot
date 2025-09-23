@@ -18,7 +18,10 @@ resource "aws_lambda_function" "app" {
 
   environment {
     variables = {
-      STAGE = terraform.workspace
+      STAGE                        = terraform.workspace
+      DDB_TABLE_NAME               = local.effective_ddb_table_name
+      OPENAI_API_KEY_SECRET_ARN    = aws_secretsmanager_secret.openai_api_key.arn
+      SLACK_APP_SECRET_ARN         = aws_secretsmanager_secret.slack_app.arn
     }
   }
 
