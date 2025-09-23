@@ -22,6 +22,8 @@ resource "aws_lambda_function" "app" {
       DDB_TABLE_NAME               = local.effective_ddb_table_name
       OPENAI_API_KEY_SECRET_ARN    = aws_secretsmanager_secret.openai_api_key.arn
       SLACK_APP_SECRET_ARN         = aws_secretsmanager_secret.slack_app.arn
+      SENDER_EMAIL_ADDRESS         = var.sender_email_address
+      SLACK_CHANNEL_ID             = var.slack_channel_id
     }
   }
 

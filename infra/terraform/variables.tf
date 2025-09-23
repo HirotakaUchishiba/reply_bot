@@ -32,4 +32,15 @@ variable "ddb_ttl_attribute" {
   default     = ""
 }
 
+variable "sender_email_address" {
+  type        = string
+  description = "SES sender email address used for replies"
+}
+
+variable "slack_channel_id" {
+  type        = string
+  description = "Slack channel ID for notifications"
+  default     = ""
+}
+
 
