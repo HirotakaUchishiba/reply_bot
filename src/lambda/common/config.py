@@ -9,6 +9,8 @@ class AppConfig:
     openai_api_key_secret_arn: str
     slack_app_secret_arn: str
     ddb_table_name: str
+    sender_email_address: str
+    slack_channel_id: str
 
 
 def load_config() -> AppConfig:
@@ -18,4 +20,6 @@ def load_config() -> AppConfig:
         openai_api_key_secret_arn=os.getenv("OPENAI_API_KEY_SECRET_ARN", ""),
         slack_app_secret_arn=os.getenv("SLACK_APP_SECRET_ARN", ""),
         ddb_table_name=os.getenv("DDB_TABLE_NAME", ""),
+        sender_email_address=os.getenv("SENDER_EMAIL_ADDRESS", ""),
+        slack_channel_id=os.getenv("SLACK_CHANNEL_ID", ""),
     )

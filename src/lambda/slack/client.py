@@ -14,6 +14,14 @@ class SlackClient:
         # Slack requires views.open within 3 seconds of interaction
         self._client.views_open(trigger_id=trigger_id, view=view)
 
+    def post_message(
+        self, channel: str, text: str, blocks: Dict[str, Any] | None = None
+    ) -> None:
+        kwargs: Dict[str, Any] = {"channel": channel, "text": text}
+        if blocks is not None:
+            kwargs["blocks"] = blocks
+        self._client.chat_postMessage(**kwargs)
+
 
 def build_ai_reply_modal(context_id: str, initial_text: str) -> Dict[str, Any]:
     # Block Kit modal per design docs with fixed IDs
