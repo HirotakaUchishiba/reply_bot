@@ -7,5 +7,5 @@ slack_sdk==3.32.0
 openai==1.51.0
 python-json-logger==2.0.7
 typing-extensions==4.12.2
-aws-lambda-powertools==2.45.0
+aws-lambda-powertools==2.43.1
 
