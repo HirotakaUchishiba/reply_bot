@@ -17,3 +17,8 @@ def get_context_item(context_id: str) -> Optional[Dict[str, Any]]:
     table = boto3.resource("dynamodb").Table(get_table_name())
     resp = table.get_item(Key={"context_id": context_id})
     return resp.get("Item")
+
+
+def put_context_item(item: Dict[str, Any]) -> None:
+    table = boto3.resource("dynamodb").Table(get_table_name())
+    table.put_item(Item=item)

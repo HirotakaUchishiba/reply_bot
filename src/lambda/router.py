@@ -11,8 +11,9 @@ from common.logging import log_error, log_info
 from common.secrets import resolve_slack_credentials
 from slack.signature import verify_slack_signature
 from slack.client import SlackClient, build_ai_reply_modal
-from common.dynamodb_repo import get_context_item
+from common.dynamodb_repo import get_context_item, put_context_item
 from common.ses_email import send_email
+from common.pii import redact_and_map
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,9 +181,31 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         log_error("unknown slack event type", event_type=str(event_type))
         return _response(400, {"error": "unsupported"})
 
-    # SES (S3/SES event) path - placeholder
+    # SES event path: parse and persist context, then Slack notify
     if "Records" in event:
-        log_info("received SES/S3 record", records=len(event["Records"]))
+        try:
+            record = (event.get("Records") or [])[0]
+            mail = (record.get("ses") or {}).get("mail") or {}
+            source = mail.get("source", "")
+            subject = mail.get("commonHeaders", {}).get("subject", "")
+            # Simplification: assume text content available under custom field
+            # In real SES inbound, need S3 object fetch. Placeholder here.
+            body_raw = (record.get("body") or "")
+            redacted, pii_map = redact_and_map(body_raw)
+            # Create context
+            context_id = mail.get("messageId", "")
+            item = {
+                "context_id": context_id,
+                "sender_email": source,
+                "subject": subject,
+                "body_raw": body_raw,
+                "body_redacted": redacted,
+                "pii_map": json.dumps(pii_map, ensure_ascii=False),
+            }
+            put_context_item(item)
+            log_info("context saved", context_id=context_id)
+        except Exception as exc:
+            log_error("failed to process ses event", error=str(exc))
         return _response(200, {"message": "ses event accepted"})
 
     return _response(400, {"error": "unrecognized event"})
