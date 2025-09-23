@@ -13,5 +13,8 @@ secret_name_slack_app      = "reply-bot/prod/slack/app-creds"
 ses_rule_set_name = "reply-bot-prod"
 ses_recipients    = ["support@example.com"]
 
+sender_email_address = "support@your-reply-domain.com"
+slack_channel_id     = "C0PRODCHANID"
+
 alarm_lambda_error_threshold = 1
 alarm_apigw_5xx_threshold    = 1
