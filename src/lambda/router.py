@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from typing import Any, Dict
+import time
 
 from urllib.parse import parse_qs
 
@@ -17,7 +18,8 @@ from slack.client import (
 )
 from common.dynamodb_repo import get_context_item, put_context_item
 from common.ses_email import send_email
-from common.pii import redact_and_map
+from common.pii import redact_and_map, reidentify
+from common.openai_client import generate_reply_draft
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,16 +105,36 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     context_id = json.loads(val).get("context_id", "")
                 except Exception:
                     context_id = ""
-            # Open modal with placeholder initial text
+            # Prepare initial text with time budget for generation (<~2s)
             bot_token = creds.get("bot_token", "")
+            initial_text = "ここにAIが生成した返信文案が表示されます。"
+            started = time.time()
+            try:
+                item = get_context_item(context_id) if context_id else None
+                redacted_body = (item or {}).get("body_redacted") or ""
+                pii_map_raw = (item or {}).get("pii_map") or "{}"
+                pii_map: Dict[str, str] = {}
+                try:
+                    pii_map = json.loads(str(pii_map_raw))
+                except Exception:
+                    pii_map = {}
+                if redacted_body and (time.time() - started) < 1.0:
+                    draft = generate_reply_draft(redacted_body)
+                    if draft:
+                        try:
+                            initial_text = reidentify(draft, pii_map)
+                        except Exception:
+                            initial_text = draft
+            except Exception as exc:
+                log_error("prefill draft failed", error=str(exc))
+
+            # Open modal
             if bot_token and trigger_id:
                 try:
                     slack = SlackClient(bot_token)
                     view = build_ai_reply_modal(
                         context_id=context_id or "",
-                        initial_text=(
-                            "ここにAIが生成した返信文案が表示されます。"
-                        ),
+                        initial_text=initial_text,
                     )
                     slack.open_modal(trigger_id=trigger_id, view=view)
                 except Exception as exc:
