@@ -1,0 +1,21 @@
+display_information:
+  name: AI Email Assistant
+  description: AIを活用してメール問い合わせへの返信作成を支援します。
+  background_color: "#2E2D2D"
+features:
+  bot_user:
+    display_name: AI Email Assistant
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+settings:
+  interactivity:
+    is_enabled: true
+    # このURLはTerraformで作成されたAPI GatewayのURLに置き換える必要があります
+    request_url: https://{api_gateway_id}.execute-api.{aws_region}.amazonaws.com/prod/slack/events
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

@@ -1,0 +1,133 @@
+name: Deploy Slack AI Email Assistant
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  test-and-plan:
+    name: Test and Plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pytest moto
+
+      - name: Lint with flake8
+        run: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Run unit tests with pytest
+        run: pytest tests/ -v
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Terraform Init
+        run: |
+          cd infra/terraform
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd infra/terraform
+          terraform plan -out=tfplan
+        env:
+          TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/terraform/tfplan
+
+  deploy-to-staging:
+    name: Deploy to Staging
+    needs: test-and-plan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Terraform Apply
+        run: |
+          cd infra/terraform
+          terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
+
+  deploy-to-prod:
+    name: Deploy to Production
+    needs: test-and-plan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Terraform Apply
+        run: |
+          cd infra/terraform
+          terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
