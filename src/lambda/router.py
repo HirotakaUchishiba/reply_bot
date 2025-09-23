@@ -10,7 +10,11 @@ from common.config import load_config
 from common.logging import log_error, log_info
 from common.secrets import resolve_slack_credentials
 from slack.signature import verify_slack_signature
-from slack.client import SlackClient, build_ai_reply_modal
+from slack.client import (
+    SlackClient,
+    build_ai_reply_modal,
+    build_new_email_notification,
+)
 from common.dynamodb_repo import get_context_item, put_context_item
 from common.ses_email import send_email
 from common.pii import redact_and_map
@@ -204,6 +208,32 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             }
             put_context_item(item)
             log_info("context saved", context_id=context_id)
+
+            # Slack notify with new email details
+            try:
+                creds = resolve_slack_credentials(
+                    cfg.slack_signing_secret_arn, cfg.slack_app_secret_arn
+                )
+                bot_token = creds.get("bot_token", "")
+                if bot_token and cfg.slack_channel_id:
+                    preview = (
+                        (redacted or body_raw or "").strip().replace("\r", "")
+                    )
+                    if len(preview) > 400:
+                        preview = preview[:400] + "…"
+                    blocks = build_new_email_notification(
+                        context_id=context_id,
+                        sender=source,
+                        subject=subject,
+                        preview_text=preview or "(本文なし)",
+                    )
+                    SlackClient(bot_token).post_message(
+                        channel=cfg.slack_channel_id,
+                        text=f"新しい問い合わせ: {subject}",
+                        blocks=blocks,
+                    )
+            except Exception as exc:
+                log_error("slack notify failed", error=str(exc))
         except Exception as exc:
             log_error("failed to process ses event", error=str(exc))
         return _response(200, {"message": "ses event accepted"})

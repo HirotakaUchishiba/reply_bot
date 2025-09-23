@@ -54,3 +54,48 @@ def build_ai_reply_modal(context_id: str, initial_text: str) -> Dict[str, Any]:
         ],
     }
 
+
+def build_new_email_notification(
+    context_id: str,
+    sender: str,
+    subject: str,
+    preview_text: str,
+) -> Any:
+    # Block Kit message for new email notification with action button
+    try:
+        value_json = json.dumps({"context_id": context_id})
+    except Exception:
+        value_json = "{}"
+    blocks: Any = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "新しい問い合わせが届きました"},
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*From:* {sender}"},
+                {"type": "mrkdwn", "text": f"*Subject:* {subject}"},
+            ],
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": preview_text,
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "返信文を生成する"},
+                    "style": "primary",
+                    "action_id": "generate_reply_action",
+                    "value": value_json,
+                }
+            ],
+        },
+    ]
+    return blocks
