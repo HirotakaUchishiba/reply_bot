@@ -4,10 +4,13 @@ import base64
 import json
 from typing import Any, Dict
 
+from urllib.parse import parse_qs
+
 from common.config import load_config
 from common.logging import log_error, log_info
 from common.secrets import resolve_slack_credentials
 from slack.signature import verify_slack_signature
+from slack.client import SlackClient, build_ai_reply_modal
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,10 +55,22 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(401, {"error": "unauthorized"})
 
         # Slack URL verification challenge support
-        try:
-            body_json = json.loads(body_bytes.decode("utf-8"))
-        except Exception:
-            body_json = {}
+        body_text = body_bytes.decode("utf-8")
+        content_type = headers.get("content-type", "")
+        body_json: Dict[str, Any] = {}
+        # Slack Interactivity: application/x-www-form-urlencoded with 'payload'
+        if "application/x-www-form-urlencoded" in content_type:
+            form = parse_qs(body_text)
+            payload_raw = (form.get("payload") or ["{}"])[0]
+            try:
+                body_json = json.loads(payload_raw)
+            except Exception:
+                body_json = {}
+        else:
+            try:
+                body_json = json.loads(body_text)
+            except Exception:
+                body_json = {}
 
         if (
             body_json.get("type") == "url_verification"
@@ -71,6 +86,28 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         event_type = body_json.get("type")
         if event_type == "block_actions":
             log_info("received block_actions")
+            # Extract trigger_id and context_id from action value JSON
+            trigger_id = body_json.get("trigger_id", "")
+            actions = body_json.get("actions") or []
+            context_id = ""
+            if actions:
+                try:
+                    val = actions[0].get("value") or "{}"
+                    context_id = json.loads(val).get("context_id", "")
+                except Exception:
+                    context_id = ""
+            # Open modal with placeholder initial text
+            bot_token = creds.get("bot_token", "")
+            if bot_token and trigger_id:
+                try:
+                    slack = SlackClient(bot_token)
+                    view = build_ai_reply_modal(
+                        context_id=context_id or "",
+                        initial_text="ここにAIが生成した返信文案が表示されます。",
+                    )
+                    slack.open_modal(trigger_id=trigger_id, view=view)
+                except Exception as exc:
+                    log_error("failed to open slack modal", error=str(exc))
             return _response(200, {"ack": True})
         if event_type == "view_submission":
             log_info("received view_submission")
