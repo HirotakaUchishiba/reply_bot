@@ -1,5 +1,5 @@
 from typing import Any, Dict
-from router import handle_event
+from .router import handle_event
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
