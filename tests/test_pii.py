@@ -11,7 +11,7 @@ with patch.dict(
         'presidio_anonymizer': MagicMock(),
     },
 ):
-    from src.app.common.pii import redact_and_map, reidentify
+    from src.app.common.pii import reidentify
 
 
 class TestPIIRedaction:
@@ -124,23 +124,39 @@ class TestPIIRedaction:
         """Test that text without PII is returned unchanged"""
         text = "これは普通のテキストです"
 
-        with patch('src.app.common.pii.analyzer') as mock_analyzer, patch(
-            'src.app.common.pii.anonymizer'
-        ) as mock_anonymizer:
+        # Import the module to patch its variables directly
+        from src.app.common import pii
+        from src.app.common.pii import redact_and_map
 
-            # Mock analyzer results - no PII found
-            mock_analyzer.analyze.return_value = []
+        # Create mock objects
+        mock_analyzer = MagicMock()
+        mock_anonymizer = MagicMock()
 
-            # Mock anonymizer results
-            mock_anonymizer.anonymize.return_value = MagicMock(
-                text=text,
-                items=[]
-            )
+        # Mock analyzer results - no PII found
+        mock_analyzer.analyze.return_value = []
+
+        # Mock anonymizer results
+        mock_anonymizer.anonymize.return_value = MagicMock(
+            text=text,
+            items=[]
+        )
+
+        # Temporarily replace the module variables
+        original_analyzer = pii.analyzer
+        original_anonymizer = pii.anonymizer
+
+        try:
+            pii.analyzer = mock_analyzer
+            pii.anonymizer = mock_anonymizer
 
             redacted_text, pii_map = redact_and_map(text)
 
             assert redacted_text == text
             assert pii_map == {}
+        finally:
+            # Restore original values
+            pii.analyzer = original_analyzer
+            pii.anonymizer = original_anonymizer
 
     def test_reidentify_text(self):
         """Test that PII placeholders are properly reidentified"""

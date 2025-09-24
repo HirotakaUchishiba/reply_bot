@@ -38,6 +38,30 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Check Required Secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_BUCKET }}" ]; then
+            echo "❌ TF_STATE_BUCKET secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ]; then
+            echo "❌ TF_STATE_DYNAMODB_TABLE secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          echo "✅ 必要なSecretsがすべて設定されています"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -83,6 +107,30 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Check Required Secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_BUCKET }}" ]; then
+            echo "❌ TF_STATE_BUCKET secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ]; then
+            echo "❌ TF_STATE_DYNAMODB_TABLE secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          echo "✅ 必要なSecretsがすべて設定されています"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -116,6 +164,30 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+
+      - name: Check Required Secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_BUCKET }}" ]; then
+            echo "❌ TF_STATE_BUCKET secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TF_STATE_DYNAMODB_TABLE }}" ]; then
+            echo "❌ TF_STATE_DYNAMODB_TABLE secretが設定されていません"
+            echo ".github/SECRETS_SETUP.mdの説明に従ってGitHub Secretsを設定してください"
+            exit 1
+          fi
+          echo "✅ 必要なSecretsがすべて設定されています"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
