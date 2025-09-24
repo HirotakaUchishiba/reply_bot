@@ -96,7 +96,9 @@ jobs:
       - name: Terraform Plan
         run: |
           cd infra/terraform
-          terraform plan -out=tfplan -lock-timeout=5m
+          # 古いロックを強制解除してから実行
+          terraform force-unlock -force 4f6e5afb-84e1-ecf0-4a99-04cf5f974e59 2>/dev/null || true
+          terraform plan -out=tfplan -lock-timeout=2m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
@@ -173,7 +175,9 @@ jobs:
       - name: Terraform Apply
         run: |
           cd infra/terraform
-          terraform apply -auto-approve tfplan -lock-timeout=5m
+          # 古いロックを強制解除してから実行
+          terraform force-unlock -force 4f6e5afb-84e1-ecf0-4a99-04cf5f974e59 2>/dev/null || true
+          terraform apply -auto-approve tfplan -lock-timeout=2m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
@@ -244,7 +248,9 @@ jobs:
       - name: Terraform Apply
         run: |
           cd infra/terraform
-          terraform apply -auto-approve tfplan -lock-timeout=5m
+          # 古いロックを強制解除してから実行
+          terraform force-unlock -force 4f6e5afb-84e1-ecf0-4a99-04cf5f974e59 2>/dev/null || true
+          terraform apply -auto-approve tfplan -lock-timeout=2m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
