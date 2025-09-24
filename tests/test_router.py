@@ -56,7 +56,10 @@ class TestEventRouter:
                 slack_channel_id="C1234567890",
             )
             mock_redact.return_value = ("Test email body", {})
-            mock_creds.return_value = {"bot_token": "xoxb-test-token"}
+            mock_creds.return_value = {
+                "bot_token": "xoxb-test-token",
+                "signing_secret": "s"
+            }
             mock_slack_instance = MagicMock()
             mock_slack.return_value = mock_slack_instance
 
@@ -99,7 +102,10 @@ class TestEventRouter:
                 ),
             )
             mock_verify.return_value = True
-            mock_creds.return_value = {"bot_token": "xoxb-test-token"}
+            mock_creds.return_value = {
+                "bot_token": "xoxb-test-token",
+                "signing_secret": "s"
+            }
             mock_get.return_value = {"body_redacted": "red", "pii_map": "{}"}
             mock_generate.return_value = "Generated reply"
             mock_reidentify.return_value = "Generated reply"

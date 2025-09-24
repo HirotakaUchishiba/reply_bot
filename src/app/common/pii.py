@@ -9,6 +9,10 @@ try:
 except Exception:  # pragma: no cover - optional in runtime via layer
     _HAS_PRESIDIO = False
 
+# Expose analyzer/anonymizer symbols for tests to patch if needed
+analyzer = None  # type: ignore[assignment]
+anonymizer = None  # type: ignore[assignment]
+
 
 EMAIL_RE = re.compile(
     r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
@@ -26,17 +30,31 @@ def redact_and_map(text: str) -> Tuple[str, Dict[str, str]]:
         return "", pii_map
 
     if _HAS_PRESIDIO:
-        analyzer = AnalyzerEngine()
-        results = analyzer.analyze(text=text, language="ja")
-        # Build deterministic placeholders by entity type with counters
+        # Prefer a patched/shared analyzer if provided; otherwise create one
+        engine = analyzer if analyzer is not None else AnalyzerEngine()
+        results = engine.analyze(text=text, language="ja")
+        # Normalize entity types to stable keys used across impl and tests
+        type_map = {
+            "EMAIL_ADDRESS": "EMAIL",
+            "PHONE_NUMBER": "PHONE",
+            "CREDIT_CARD_NUMBER": "CARD",
+        }
         counters: Dict[str, int] = {}
         redacted = text
         # Sort results by start index descending to safely replace
         for r in sorted(results, key=lambda r: r.start, reverse=True):
-            counters[r.entity_type] = counters.get(r.entity_type, 0) + 1
-            placeholder = f"[{r.entity_type}_{counters[r.entity_type]}]"
-            pii_map[placeholder] = text[r.start:r.end]
-            redacted = redacted[:r.start] + placeholder + redacted[r.end:]
+            entity_type = getattr(r, "entity_type", "")
+            key = type_map.get(entity_type, entity_type)
+            if not key:
+                continue
+            counters[key] = counters.get(key, 0) + 1
+            placeholder = f"[{key}_{counters[key]}]"
+            start = getattr(r, "start", None)
+            end = getattr(r, "end", None)
+            if start is None or end is None:
+                continue
+            pii_map[placeholder] = text[start:end]
+            redacted = redacted[:start] + placeholder + redacted[end:]
         return redacted, pii_map
 
     # Fallback regex-based
@@ -65,4 +83,3 @@ def reidentify(text: str, pii_map: Dict[str, str]) -> str:
     for placeholder, original in pii_map.items():
         out = out.replace(placeholder, original)
     return out
-
