@@ -2,10 +2,10 @@
   "terraform": {
     "backend": {
       "s3": {
-        "bucket": "${var.tf_state_bucket}",
-        "key": "${var.tf_state_key_prefix}/${terraform.workspace}.tfstate",
-        "region": "${var.aws_region}",
-        "dynamodb_table": "${var.tf_state_dynamodb_table}",
+        "bucket": "reply-bot-terraform-state-20241224",
+        "key": "terraform.tfstate",
+        "region": "ap-northeast-1",
+        "dynamodb_table": "reply-bot-terraform-state-lock",
         "encrypt": true
       }
     }
