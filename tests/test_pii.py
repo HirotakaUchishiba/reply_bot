@@ -30,7 +30,7 @@ class TestPIIRedaction:
                 MagicMock(
                     entity_type="EMAIL_ADDRESS",
                     start=5,
-                    end=20,
+                    end=21,  # test@example.com is 16 chars, so 5+16=21
                     score=0.9,
                 )
             ]
@@ -42,7 +42,7 @@ class TestPIIRedaction:
                     MagicMock(
                         operator="replace",
                         start=5,
-                        end=20,
+                        end=21,
                         text="[EMAIL_1]",
                     )
                 ],
@@ -66,8 +66,8 @@ class TestPIIRedaction:
             mock_analyzer.analyze.return_value = [
                 MagicMock(
                     entity_type="PHONE_NUMBER",
-                    start=5,
-                    end=18,
+                    start=6,  # 090-1234-5678 starts at position 6
+                    end=19,   # 090-1234-5678 ends at position 19
                     score=0.9,
                 )
             ]
@@ -78,8 +78,8 @@ class TestPIIRedaction:
                 items=[
                     MagicMock(
                         operator="replace",
-                        start=5,
-                        end=18,
+                        start=6,
+                        end=19,
                         text="[PHONE_1]",
                     )
                 ],

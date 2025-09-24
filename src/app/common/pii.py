@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 
 try:
     from presidio_analyzer import AnalyzerEngine
@@ -10,8 +10,8 @@ except Exception:  # pragma: no cover - optional in runtime via layer
     _HAS_PRESIDIO = False
 
 # Expose analyzer/anonymizer symbols for tests to patch if needed
-analyzer = None  # type: ignore[assignment]
-anonymizer = None  # type: ignore[assignment]
+analyzer: Any = None
+anonymizer: Any = None
 
 
 EMAIL_RE = re.compile(
@@ -30,7 +30,9 @@ def redact_and_map(text: str) -> Tuple[str, Dict[str, str]]:
         return "", pii_map
 
     # Check if analyzer/anonymizer are mocked (for tests)
-    if analyzer is not None and anonymizer is not None:
+    # If they have been patched, they will be MagicMock instances
+    if (analyzer is not None and anonymizer is not None and
+            hasattr(analyzer, 'analyze') and hasattr(anonymizer, 'anonymize')):
         # Use mocked components for testing
         results = analyzer.analyze(text=text, language="ja")
         anonymized_result = anonymizer.anonymize(
