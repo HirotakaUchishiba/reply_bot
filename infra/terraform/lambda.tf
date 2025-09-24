@@ -28,7 +28,7 @@ resource "aws_lambda_function" "app" {
   }
 
   layers = [
-    module.presidio_layer.arn
+    aws_lambda_layer_version.presidio.arn
   ]
 
   dead_letter_config {
