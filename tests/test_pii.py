@@ -21,75 +21,102 @@ class TestPIIRedaction:
         """Test that email addresses are properly redacted and mapped"""
         text = "連絡先は test@example.com です"
 
-        with patch('src.app.common.pii.analyzer') as mock_analyzer, patch(
-            'src.app.common.pii.anonymizer'
-        ) as mock_anonymizer:
+        # Import the module to patch its variables directly
+        from src.app.common import pii
 
-            # Mock analyzer results
-            mock_analyzer.analyze.return_value = [
-                MagicMock(
-                    entity_type="EMAIL_ADDRESS",
-                    start=5,
-                    end=21,  # test@example.com is 16 chars, so 5+16=21
-                    score=0.9,
-                )
-            ]
-
-            # Mock anonymizer results
-            mock_anonymizer.anonymize.return_value = MagicMock(
-                text="連絡先は [EMAIL_1] です",
-                items=[
-                    MagicMock(
-                        operator="replace",
-                        start=5,
-                        end=21,
-                        text="[EMAIL_1]",
-                    )
-                ],
+        # Create mock objects
+        mock_analyzer = MagicMock()
+        mock_anonymizer = MagicMock()
+        # Mock analyzer results
+        mock_analyzer.analyze.return_value = [
+            MagicMock(
+                entity_type="EMAIL_ADDRESS",
+                start=5,
+                end=21,  # test@example.com is 16 chars, so 5+16=21
+                score=0.9,
             )
+        ]
 
+        # Mock anonymizer results
+        mock_anonymizer.anonymize.return_value = MagicMock(
+            text="連絡先は [EMAIL_1] です",
+            items=[
+                MagicMock(
+                    operator="replace",
+                    start=5,
+                    end=21,
+                    text="[EMAIL_1]",
+                )
+            ],
+        )
+
+        # Temporarily replace the module variables
+        original_analyzer = pii.analyzer
+        original_anonymizer = pii.anonymizer
+
+        try:
+            pii.analyzer = mock_analyzer
+            pii.anonymizer = mock_anonymizer
             redacted_text, pii_map = redact_and_map(text)
 
             assert redacted_text == "連絡先は [EMAIL_1] です"
             assert "[EMAIL_1]" in pii_map
             assert pii_map["[EMAIL_1]"] == "test@example.com"
+        finally:
+            # Restore original values
+            pii.analyzer = original_analyzer
+            pii.anonymizer = original_anonymizer
 
     def test_redact_and_map_phone(self):
         """Test that phone numbers are properly redacted and mapped"""
         text = "電話番号は 090-1234-5678 です"
 
-        with patch('src.app.common.pii.analyzer') as mock_analyzer, patch(
-            'src.app.common.pii.anonymizer'
-        ) as mock_anonymizer:
+        # Import the module to patch its variables directly
+        from src.app.common import pii
 
-            # Mock analyzer results
-            mock_analyzer.analyze.return_value = [
-                MagicMock(
-                    entity_type="PHONE_NUMBER",
-                    start=6,  # 090-1234-5678 starts at position 6
-                    end=19,   # 090-1234-5678 ends at position 19
-                    score=0.9,
-                )
-            ]
+        # Create mock objects
+        mock_analyzer = MagicMock()
+        mock_anonymizer = MagicMock()
 
-            # Mock anonymizer results
-            mock_anonymizer.anonymize.return_value = MagicMock(
-                text="電話番号は [PHONE_1] です",
-                items=[
-                    MagicMock(
-                        operator="replace",
-                        start=6,
-                        end=19,
-                        text="[PHONE_1]",
-                    )
-                ],
+        # Mock analyzer results
+        mock_analyzer.analyze.return_value = [
+            MagicMock(
+                entity_type="PHONE_NUMBER",
+                start=6,  # 090-1234-5678 starts at position 6
+                end=19,   # 090-1234-5678 ends at position 19
+                score=0.9,
             )
+        ]
 
+        # Mock anonymizer results
+        mock_anonymizer.anonymize.return_value = MagicMock(
+            text="電話番号は [PHONE_1] です",
+            items=[
+                MagicMock(
+                    operator="replace",
+                    start=6,
+                    end=19,
+                    text="[PHONE_1]",
+                )
+            ],
+        )
+
+        # Temporarily replace the module variables
+        original_analyzer = pii.analyzer
+        original_anonymizer = pii.anonymizer
+
+        try:
+            pii.analyzer = mock_analyzer
+            pii.anonymizer = mock_anonymizer
             redacted_text, pii_map = redact_and_map(text)
 
             assert redacted_text == "電話番号は [PHONE_1] です"
             assert "[PHONE_1]" in pii_map
             assert pii_map["[PHONE_1]"] == "090-1234-5678"
+        finally:
+            # Restore original values
+            pii.analyzer = original_analyzer
+            pii.anonymizer = original_anonymizer
 
     def test_redact_and_map_no_pii(self):
         """Test that text without PII is returned unchanged"""
