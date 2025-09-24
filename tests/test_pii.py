@@ -23,6 +23,7 @@ class TestPIIRedaction:
 
         # Import the module to patch its variables directly
         from src.app.common import pii
+        from src.app.common.pii import redact_and_map
 
         # Create mock objects
         mock_analyzer = MagicMock()
@@ -73,6 +74,7 @@ class TestPIIRedaction:
 
         # Import the module to patch its variables directly
         from src.app.common import pii
+        from src.app.common.pii import redact_and_map
 
         # Create mock objects
         mock_analyzer = MagicMock()
