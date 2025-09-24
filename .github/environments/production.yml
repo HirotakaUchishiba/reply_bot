@@ -1,0 +1,17 @@
+# 本番環境設定
+# このファイルは本番環境の設定を定義します
+
+environment:
+  name: production
+  url: https://api.example.com  # 実際の本番URLに更新してください
+
+# 環境固有の変数
+variables:
+  AWS_REGION: ap-northeast-1
+  ENVIRONMENT: production
+  LOG_LEVEL: INFO
+
+# 保護ルール（本番環境推奨）
+protection_rules:
+  required_reviewers: 2  # 本番環境では2つの承認が必要
+  wait_timer: 5  # デプロイ前の5分間待機
