@@ -14,6 +14,10 @@
 - `TF_STATE_BUCKET`: Terraform状態を保存するS3バケット名
 - `TF_STATE_DYNAMODB_TABLE`: Terraform状態ロック用のDynamoDBテーブル名
 
+### アプリケーション設定
+- `SENDER_EMAIL_ADDRESS`: SESで使用する送信者メールアドレス
+- `SLACK_CHANNEL_ID`: 通知用のSlackチャンネルID
+
 ## Secretsの追加方法
 
 1. GitHubリポジトリに移動
