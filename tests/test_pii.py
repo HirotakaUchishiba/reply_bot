@@ -11,7 +11,7 @@ with patch.dict(
         'presidio_anonymizer': MagicMock(),
     },
 ):
-    from src.app.common.pii import redact_and_map, reidentify
+    from src.app.common.pii import reidentify
 
 
 class TestPIIRedaction:
