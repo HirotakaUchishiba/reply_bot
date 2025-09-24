@@ -10,6 +10,11 @@ on:
       - main
       - develop
 
+# 同時実行を制限してTerraform状態ロック競合を防止
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-plan:
     name: Test and Plan
@@ -91,7 +96,7 @@ jobs:
       - name: Terraform Plan
         run: |
           cd infra/terraform
-          terraform plan -out=tfplan
+          terraform plan -out=tfplan -lock-timeout=5m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
@@ -168,7 +173,7 @@ jobs:
       - name: Terraform Apply
         run: |
           cd infra/terraform
-          terraform apply -auto-approve tfplan
+          terraform apply -auto-approve tfplan -lock-timeout=5m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
@@ -239,7 +244,7 @@ jobs:
       - name: Terraform Apply
         run: |
           cd infra/terraform
-          terraform apply -auto-approve tfplan
+          terraform apply -auto-approve tfplan -lock-timeout=5m
         env:
           TF_VAR_tf_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
           TF_VAR_tf_state_dynamodb_table: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
