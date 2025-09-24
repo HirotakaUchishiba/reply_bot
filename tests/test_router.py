@@ -157,7 +157,10 @@ class TestEventRouter:
                 slack_channel_id="C1234567890",
             )
             mock_verify.return_value = True
-            mock_creds.return_value = {"bot_token": "xoxb-test-token"}
+            mock_creds.return_value = {
+                "bot_token": "xoxb-test-token",
+                "signing_secret": "s"
+            }
             mock_get.return_value = {
                 "sender_email": "customer@example.com",
                 "subject": "Re: Test Subject",
