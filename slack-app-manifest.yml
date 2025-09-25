@@ -1,7 +1,12 @@
 display_information:
   name: AI Email Assistant
-  description: AIを活用してメール問い合わせへの返信作成を支援します。
+  description: AIを活用してメール問い合わせへの返信作成を支援します。受信したメールの内容を分析し、適切な返信文案を自動生成します。
   background_color: "#2E2D2D"
+  long_description: |
+    Slack AI Email Assistantは、顧客からのメール問い合わせを自動的に処理し、
+    AIを活用して適切な返信文案を生成します。生成された文案はSlack上で
+    レビュー・編集・承認することができ、Human-in-the-Loopのプロセスを
+    組み込んで品質を保証します。
 features:
   bot_user:
     display_name: AI Email Assistant
@@ -11,6 +16,7 @@ oauth_config:
     bot:
       - chat:write
       - commands
+      - chat:write.public
 settings:
   interactivity:
     is_enabled: true
@@ -20,3 +26,9 @@ settings:
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
+  event_subscriptions:
+    bot_events:
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
