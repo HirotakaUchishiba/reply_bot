@@ -55,23 +55,53 @@ OpenAIを活用し、顧客からのEメール問い合わせへの返信業務�
   * Terraform
   * OpenAI APIキー
   * Slackワークスペースとアプリ作成権限
+  * 送信用ドメイン（SES認証用）
 
-### デプロイ手順
+### クイックスタート
 
-本プロジェクトはTerraformを用いてインフラを管理しています。
+1. **リポジトリをクローン**
+   ```bash
+   git clone https://github.com/your-org/reply_bot.git
+   cd reply_bot
+   ```
 
-1.  リポジトリをクローンします。
-2.  `staging.tfvars`や`prod.tfvars`などの環境変数ファイルを作成し、AWSアカウントID、OpenAI APIキーの保存先（Secrets ManagerのARN）、Slackの資格情報などを設定します。
-3.  Terraform Workspaceを使用してデプロイ対象の環境を選択します。
-    ```bash
-    terraform workspace select staging
-    ```
-4.  Terraformコマンドを実行してインフラをプロビジョニングします。
-    ```bash
-    terraform init
-    terraform plan -var-file="staging.tfvars"
-    terraform apply -var-file="staging.tfvars"
-    ```
+2. **GitHub Secretsの設定**
+   - [SECRETS_SETUP.md](.github/SECRETS_SETUP.md)の指示に従ってGitHub Secretsを設定
+
+3. **環境設定ファイルの準備**
+   - `infra/terraform/staging.tfvars` - ステージング環境設定
+   - `infra/terraform/prod.tfvars` - 本番環境設定
+   - `infra/terraform/backend.auto.tfvars` - バックエンド設定
+
+4. **デプロイの実行**
+   ```bash
+   # ステージング環境へのデプロイ
+   git push origin develop
+   
+   # 本番環境へのデプロイ
+   git push origin main
+   ```
+
+5. **デプロイ後の設定**
+   - [SLACK_APP_SETUP.md](.github/SLACK_APP_SETUP.md) - Slackアプリの設定
+   - [SES_DOMAIN_SETUP.md](.github/SES_DOMAIN_SETUP.md) - SESドメイン認証
+   - [SECRETS_MANAGER_SETUP.md](.github/SECRETS_MANAGER_SETUP.md) - シークレット設定
+
+### 自動化スクリプト
+
+プロジェクトには便利な自動化スクリプトが含まれています：
+
+```bash
+# Secrets Managerの設定
+./scripts/setup-secrets.sh staging --interactive
+
+# デプロイメントの検証
+./scripts/validate-deployment.sh staging --all
+```
+
+### 詳細なデプロイ手順
+
+詳細な手順については、[DEPLOYMENT_GUIDE.md](.github/DEPLOYMENT_GUIDE.md)を参照してください。
 
 GitHub Actionsを用いたCI/CDパイプラインも定義されており、リポジトリへのプッシュをトリガーに自動でテストとデプロイが実行されます。
 
