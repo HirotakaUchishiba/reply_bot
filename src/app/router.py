@@ -7,19 +7,40 @@ import time
 
 from urllib.parse import parse_qs
 
-from common.config import load_config
-from common.logging import log_error, log_info
-from common.secrets import resolve_slack_credentials
-from .slack.signature import verify_slack_signature
-from .slack.client import (
-    SlackClient,
-    build_ai_reply_modal,
-    build_new_email_notification,
-)
-from common.dynamodb_repo import get_context_item, put_context_item
-from common.ses_email import send_email
-from common.pii import redact_and_map, reidentify
-from common.openai_client import generate_reply_draft
+try:
+    # Lambda環境用の絶対インポート
+    from common.config import load_config
+    from common.logging import log_error, log_info
+    from common.secrets import resolve_slack_credentials
+    from common.dynamodb_repo import get_context_item, put_context_item
+    from common.ses_email import send_email
+    from slack.signature import verify_slack_signature
+    from slack.client import (
+        SlackClient,
+        build_ai_reply_modal,
+        build_new_email_notification,
+    )
+except ImportError:
+    # テスト環境用の相対インポート
+    from .common.config import load_config
+    from .common.logging import log_error, log_info
+    from .common.secrets import resolve_slack_credentials
+    from .common.dynamodb_repo import get_context_item, put_context_item
+    from .common.ses_email import send_email
+    from .slack.signature import verify_slack_signature
+    from .slack.client import (
+        SlackClient,
+        build_ai_reply_modal,
+        build_new_email_notification,
+    )
+try:
+    # Lambda環境用の絶対インポート
+    from common.pii import redact_and_map, reidentify
+    from common.openai_client import generate_reply_draft
+except ImportError:
+    # テスト環境用の相対インポート
+    from .common.pii import redact_and_map, reidentify
+    from .common.openai_client import generate_reply_draft
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:

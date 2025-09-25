@@ -1,5 +1,11 @@
 from typing import Any, Dict
-import router
+
+try:
+    # Lambda環境用の絶対インポート
+    import router
+except ImportError:
+    # テスト環境用の相対インポート
+    from . import router
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
