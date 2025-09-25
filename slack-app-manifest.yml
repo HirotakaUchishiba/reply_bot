@@ -15,7 +15,8 @@ settings:
   interactivity:
     is_enabled: true
     # このURLはTerraformで作成されたAPI GatewayのURLに置き換える必要があります
-    request_url: https://{api_gateway_id}.execute-api.{aws_region}.amazonaws.com/prod/slack/events
+    # 例: https://abc123def4.execute-api.ap-northeast-1.amazonaws.com/slack/events
+    request_url: https://YOUR_API_GATEWAY_ID.execute-api.ap-northeast-1.amazonaws.com/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
