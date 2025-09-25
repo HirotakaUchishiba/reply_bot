@@ -21,6 +21,10 @@ ses_recipients    = ["support@example.com"]
 sender_email_address = "support@your-reply-domain.com"
 slack_channel_id     = "C01234ABCDE"
 
+# SES Domain Authentication (optional)
+ses_domain_name = "staging.your-reply-domain.com"
+ses_dmarc_email = "dmarc@your-reply-domain.com"
+
 # Monitoring configuration
 alarm_lambda_error_threshold = 1
 alarm_apigw_5xx_threshold    = 1
