@@ -5,9 +5,9 @@ from typing import Optional
 
 from openai import OpenAI
 
-from .config import load_config
-from .logging import log_error
-from .secrets import resolve_openai_api_key
+from common.config import load_config
+from common.logging import log_error
+from common.secrets import resolve_openai_api_key
 
 
 @lru_cache(maxsize=1)
