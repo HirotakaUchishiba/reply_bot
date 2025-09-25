@@ -13,18 +13,28 @@
    - Terraform状態用DynamoDBテーブル
    - 適切なIAM権限
 
+3. **設定ファイルの準備**
+   - `infra/terraform/staging.tfvars` - ステージング環境設定
+   - `infra/terraform/prod.tfvars` - 本番環境設定
+   - `infra/terraform/backend.auto.tfvars` - バックエンド設定
+
+4. **外部サービス設定**
+   - Slackアプリの作成と設定
+   - SES送信ドメインの認証（SPF/DKIM/DMARC）
+   - OpenAI APIキーの取得
+
 ## デプロイメント環境
 
 ### ステージング環境
 - **トリガー**: `develop`ブランチへのプッシュ
 - **環境**: `staging`
-- **URL**: https://staging-api.example.com（必要に応じて更新）
+- **URL**: `https://{api_gateway_id}.execute-api.ap-northeast-1.amazonaws.com/slack/events`
 - **保護**: 1人のレビュアーが必要
 
 ### 本番環境
 - **トリガー**: `main`ブランチへのプッシュ
 - **環境**: `production`
-- **URL**: https://api.example.com（必要に応じて更新）
+- **URL**: `https://{api_gateway_id}.execute-api.ap-northeast-1.amazonaws.com/slack/events`
 - **保護**: 2人のレビュアーが必要、5分間の待機タイマー
 
 ## デプロイメントプロセス
@@ -45,6 +55,31 @@
 4. ブランチと環境を選択
 5. **Run workflow**をクリック
 
+## デプロイ後の設定
+
+### 1. API Gateway URLの取得
+デプロイ完了後、Terraformの出力からAPI Gateway URLを取得：
+```bash
+cd infra/terraform
+terraform output api_gateway_url
+```
+
+### 2. Slackアプリの設定更新
+1. Slack APIの管理画面にアクセス
+2. アプリの設定 > Interactivity & Shortcuts
+3. Request URLを上記で取得したURLに更新
+4. 変更を保存
+
+### 3. Secrets Managerへの値設定
+以下のSecretsに実際の値を設定：
+- `reply-bot/{env}/openai/api-key` - OpenAI APIキー
+- `reply-bot/{env}/slack/app-creds` - Slack Bot TokenとSigning Secret
+
+### 4. SES送信ドメインの認証
+- SPFレコードの設定
+- DKIM認証の設定
+- DMARCポリシーの設定（最低p=none）
+
 ## デプロイメントの監視
 
 ### GitHub Actions
@@ -56,6 +91,7 @@
 - リソースが正しく作成されているか確認
 - Lambda関数のログを確認
 - API Gatewayエンドポイントを監視
+- CloudWatchダッシュボードでメトリクスを確認
 
 ## トラブルシューティング
 
