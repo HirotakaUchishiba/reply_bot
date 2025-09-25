@@ -74,11 +74,13 @@ terraform output api_gateway_url
 以下のSecretsに実際の値を設定：
 - `reply-bot/{env}/openai/api-key` - OpenAI APIキー
 - `reply-bot/{env}/slack/app-creds` - Slack Bot TokenとSigning Secret
+- 詳細手順: [SECRETS_MANAGER_SETUP.md](./SECRETS_MANAGER_SETUP.md)
 
 ### 4. SES送信ドメインの認証
 - SPFレコードの設定
 - DKIM認証の設定
 - DMARCポリシーの設定（最低p=none）
+- 詳細手順: [SES_DOMAIN_SETUP.md](./SES_DOMAIN_SETUP.md)
 
 ## デプロイメントの監視
 
