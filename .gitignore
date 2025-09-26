@@ -15,6 +15,10 @@ override.tf.json
 *_override.tf.json
 terraform.tfvars
 *.auto.tfvars
+staging.tfvars
+prod.tfvars
+backend.auto.tfvars
+*.local.tfvars
 
 # Local env/config
 .env
