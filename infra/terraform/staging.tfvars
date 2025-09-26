@@ -19,7 +19,7 @@ ses_recipients    = ["support@example.com"]
 
 # Application configuration (to be set via GitHub Secrets)
 sender_email_address = "support@your-reply-domain.com"
-slack_channel_id     = "C0000000000"  # 実際のSlackチャンネルIDに置き換えてください
+slack_channel_id     = "C01234ABCDE"
 
 # SES Domain Authentication (optional)
 ses_domain_name = "staging.your-reply-domain.com"
