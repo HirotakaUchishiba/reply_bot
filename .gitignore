@@ -102,9 +102,6 @@ wheels/
 .terraform/
 .terraform.lock.hcl
 
-# Local Terraform configuration files (機密情報を含む)
-*.local.tfvars
-
 # AWS
 .aws/
 .obsidian/workspace.json
