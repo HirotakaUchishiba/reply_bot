@@ -20,3 +20,10 @@ resource "aws_secretsmanager_secret" "slack_app" {
   kms_key_id = null
 }
 
+output "secrets_openai_arn" {
+  value = aws_secretsmanager_secret.openai_api_key.arn
+}
+
+output "secrets_slack_app_arn" {
+  value = aws_secretsmanager_secret.slack_app.arn
+}
