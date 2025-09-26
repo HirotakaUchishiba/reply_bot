@@ -14,7 +14,7 @@ ses_rule_set_name = "reply-bot-staging"
 ses_recipients    = ["support@example.com"]
 
 sender_email_address = "support@your-reply-domain.com"
-slack_channel_id     = "C01234ABCDE"
+slack_channel_id     = "C0000000000"  # 実際のSlackチャンネルIDに置き換えてください
 
 alarm_lambda_error_threshold = 1
 alarm_apigw_5xx_threshold    = 1
