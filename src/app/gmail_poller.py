@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import base64
 import json
-
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
 
 from common.config import load_config
 from common.logging import log_error, log_info
@@ -17,7 +14,16 @@ from slack.client import SlackClient, build_new_email_notification
 
 
 def _get_gmail_service(creds_dict: Dict[str, str]):
-    creds = Credentials(
+    # Import Gmail SDK lazily to avoid import errors in environments
+    # where libs are not installed (e.g., certain CI or lint contexts).
+    from google.oauth2.credentials import (  # type: ignore[import-not-found]
+        Credentials as GoogleCredentials,
+    )
+    from googleapiclient.discovery import (  # type: ignore[import-not-found]
+        build as google_build,
+    )
+
+    creds = GoogleCredentials(
         None,
         refresh_token=creds_dict.get("refresh_token", ""),
         client_id=creds_dict.get("client_id", ""),
@@ -25,17 +31,26 @@ def _get_gmail_service(creds_dict: Dict[str, str]):
         token_uri="https://oauth2.googleapis.com/token",
         scopes=["https://www.googleapis.com/auth/gmail.readonly"],
     )
-    return build("gmail", "v1", credentials=creds, cache_discovery=False)
+    return google_build(
+        "gmail",
+        "v1",
+        credentials=creds,
+        cache_discovery=False,
+    )
 
 
-def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ignore[override]
+def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     cfg = load_config()
     try:
         clear_secrets_cache()
-        gmail_creds = resolve_gmail_oauth(cfg.gmail_oauth_secret_arn)  # type: ignore[attr-defined]
+        secret_arn = cfg.gmail_oauth_secret_arn  # type: ignore[attr-defined]
+        gmail_creds = resolve_gmail_oauth(secret_arn)
     except Exception as exc:
         log_error("missing gmail secrets", error=str(exc))
-        return {"statusCode": 500, "body": json.dumps({"error": "server configuration"})}
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": "server configuration"}),
+        }
 
     try:
         service = _get_gmail_service(gmail_creds)
@@ -49,8 +64,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ign
         messages = msgs_resp.get("messages", [])
         count = 0
         for m in messages:
-            msg = service.users().messages().get(userId="me", id=m["id"], format="full").execute()
-            headers = {h["name"].lower(): h.get("value", "") for h in msg.get("payload", {}).get("headers", [])}
+            msg = (
+                service.users()
+                .messages()
+                .get(userId="me", id=m["id"], format="full")
+                .execute()
+            )
+            headers = {
+                h["name"].lower(): h.get("value", "")
+                for h in msg.get("payload", {}).get("headers", [])
+            }
             subject = headers.get("subject", "")
             sender = headers.get("from", "")
             parts = msg.get("payload", {}).get("parts", [])
@@ -59,7 +82,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ign
                 if p.get("mimeType") in ("text/plain", "text/html"):
                     data = p.get("body", {}).get("data", "")
                     if data:
-                        body_raw = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        body_raw = base64.urlsafe_b64decode(data).decode(
+                            "utf-8", errors="ignore"
+                        )
                         break
             redacted, pii_map = redact_and_map(body_raw)
             context_id = msg.get("id", "")
@@ -75,7 +100,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ign
             )
             # Slack 通知
             try:
-                preview = (redacted or body_raw or "").strip().replace("\r", "")
+                preview = (
+                    (redacted or body_raw or "").strip().replace("\r", "")
+                )
                 if len(preview) > 400:
                     preview = preview[:400] + "…"
                 blocks = build_new_email_notification(
@@ -88,7 +115,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ign
                 from common.secrets import resolve_slack_credentials
 
                 clear_secrets_cache()
-                creds = resolve_slack_credentials(cfg.slack_signing_secret_arn, cfg.slack_app_secret_arn)
+                creds = resolve_slack_credentials(
+                    cfg.slack_signing_secret_arn,
+                    cfg.slack_app_secret_arn,
+                )
                 bot_token = creds.get("bot_token", "")
                 if bot_token and cfg.slack_channel_id:
                     SlackClient(bot_token).post_message(
@@ -104,5 +134,3 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # type: ign
     except Exception as exc:
         log_error("gmail poll failed", error=str(exc))
         return {"statusCode": 500, "body": json.dumps({"error": str(exc)})}
-
-
