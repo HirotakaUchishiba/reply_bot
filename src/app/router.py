@@ -21,8 +21,7 @@ try:
         build_new_email_notification,
     )
     from common.pii import redact_and_map, reidentify
-    # 一時的にOpenAI機能を無効化
-    # from common.openai_client import generate_reply_draft
+    from common.openai_client import generate_reply_draft
 except ImportError:
     # テスト環境用の相対インポート
     from .common.config import load_config
@@ -37,8 +36,7 @@ except ImportError:
         build_new_email_notification,
     )
     from .common.pii import redact_and_map, reidentify
-    # 一時的にOpenAI機能を無効化
-    # from .common.openai_client import generate_reply_draft
+    from .common.openai_client import generate_reply_draft
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -140,8 +138,11 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 except Exception:
                     pii_map = {}
                 if redacted_body and (time.time() - started) < 1.0:
-                    # 一時的にOpenAI機能を無効化
-                    draft = "AI返信生成機能は一時的に無効化されています。"
+                    try:
+                        draft = generate_reply_draft(redacted_body)
+                    except Exception as exc:
+                        log_error("openai generation failed", error=str(exc))
+                        draft = ""
                     if draft:
                         try:
                             initial_text = reidentify(draft, pii_map)

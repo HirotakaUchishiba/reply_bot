@@ -88,6 +88,7 @@ class TestIntegration:
             patch("src.app.router.resolve_slack_credentials") as mock_creds,
             patch("src.app.router.verify_slack_signature") as mock_verify,
             patch("src.app.router.get_context_item") as mock_get,
+            patch("src.app.router.generate_reply_draft") as mock_generate,
             patch("src.app.router.reidentify") as mock_reidentify,
             patch("src.app.router.SlackClient") as mock_slack,
         ):
@@ -105,7 +106,7 @@ class TestIntegration:
                 "body_redacted": "Hello, I have a question about your service.",
                 "pii_map": "{}"
             }
-            # mock_generate is no longer needed as OpenAI functionality is disabled
+            mock_generate.return_value = "Thank you for your inquiry. We will get back to you soon."
             mock_reidentify.return_value = "Thank you for your inquiry. We will get back to you soon."
             mock_slack_instance = MagicMock()
             mock_slack.return_value = mock_slack_instance

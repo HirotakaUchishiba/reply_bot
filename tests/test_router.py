@@ -89,6 +89,7 @@ class TestEventRouter:
             ) as mock_creds,
             patch("src.app.router.verify_slack_signature") as mock_verify,
             patch("src.app.router.get_context_item") as mock_get,
+            patch("src.app.router.generate_reply_draft") as mock_generate,
             patch("src.app.router.reidentify") as mock_reidentify,
             patch("src.app.router.SlackClient") as mock_slack,
         ):
@@ -106,7 +107,7 @@ class TestEventRouter:
                 "signing_secret": "s"
             }
             mock_get.return_value = {"body_redacted": "red", "pii_map": "{}"}
-            # mock_generate is no longer needed as OpenAI functionality is disabled
+            mock_generate.return_value = "Generated reply"
             mock_reidentify.return_value = "Generated reply"
             mock_slack_instance = MagicMock()
             mock_slack.return_value = mock_slack_instance
