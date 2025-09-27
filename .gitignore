@@ -19,6 +19,12 @@ staging.tfvars
 prod.tfvars
 backend.auto.tfvars
 *.local.tfvars
+# 機密情報を含む可能性のあるファイル
+*secret*
+*credential*
+*key*
+*password*
+*token*
 
 # Local env/config
 .env
@@ -73,10 +79,15 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+# 機密情報を含む環境変数ファイル
+config.local.*
+secrets.*
+credentials.*
 
 # Python
 __pycache__/
