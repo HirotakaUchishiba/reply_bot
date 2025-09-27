@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 .venv/
+# Python package installation artifacts
+*.dist-info/
+bin/
 
 # Terraform
 .terraform/
@@ -19,6 +22,8 @@ staging.tfvars
 prod.tfvars
 backend.auto.tfvars
 *.local.tfvars
+# Terraform build artifacts
+.dist/
 # 機密情報を含む可能性のあるファイル
 *secret*
 *credential*
