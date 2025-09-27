@@ -11,20 +11,23 @@ try:
     # Lambda環境用の絶対インポート
     from common.config import load_config
     from common.logging import log_error, log_info
-    from common.secrets import resolve_slack_credentials
+    from common.secrets import resolve_slack_credentials, clear_secrets_cache
     from common.dynamodb_repo import get_context_item, put_context_item
     from common.ses_email import send_email
-    from slack.signature import verify_slack_signature
+    from slack.signature import verify_slack_signature  # type: ignore
     from slack.client import (
         SlackClient,
         build_ai_reply_modal,
         build_new_email_notification,
     )
+    from common.pii import redact_and_map, reidentify
+    # 一時的にOpenAI機能を無効化
+    # from common.openai_client import generate_reply_draft
 except ImportError:
     # テスト環境用の相対インポート
     from .common.config import load_config
     from .common.logging import log_error, log_info
-    from .common.secrets import resolve_slack_credentials
+    from .common.secrets import resolve_slack_credentials, clear_secrets_cache
     from .common.dynamodb_repo import get_context_item, put_context_item
     from .common.ses_email import send_email
     from .slack.signature import verify_slack_signature
@@ -33,14 +36,9 @@ except ImportError:
         build_ai_reply_modal,
         build_new_email_notification,
     )
-try:
-    # Lambda環境用の絶対インポート
-    from common.pii import redact_and_map, reidentify
-    from common.openai_client import generate_reply_draft
-except ImportError:
-    # テスト環境用の相対インポート
     from .common.pii import redact_and_map, reidentify
-    from .common.openai_client import generate_reply_draft
+    # 一時的にOpenAI機能を無効化
+    # from .common.openai_client import generate_reply_draft
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -72,6 +70,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         sig = headers.get("x-slack-signature", "")
 
         try:
+            # Clear secrets cache to ensure fresh token retrieval
+            clear_secrets_cache()
             creds = resolve_slack_credentials(
                 cfg.slack_signing_secret_arn, cfg.slack_app_secret_arn
             )
@@ -140,7 +140,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 except Exception:
                     pii_map = {}
                 if redacted_body and (time.time() - started) < 1.0:
-                    draft = generate_reply_draft(redacted_body)
+                    # 一時的にOpenAI機能を無効化
+                    draft = "AI返信生成機能は一時的に無効化されています。"
                     if draft:
                         try:
                             initial_text = reidentify(draft, pii_map)
@@ -207,6 +208,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
             # Post Slack confirmation
             try:
+                # Clear secrets cache to ensure fresh token retrieval
+                clear_secrets_cache()
                 bot_token = (
                     resolve_slack_credentials(
                         cfg.slack_signing_secret_arn,
@@ -254,6 +257,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
             # Slack notify with new email details
             try:
+                # Clear secrets cache to ensure fresh token retrieval
+                clear_secrets_cache()
                 creds = resolve_slack_credentials(
                     cfg.slack_signing_secret_arn, cfg.slack_app_secret_arn
                 )
