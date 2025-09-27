@@ -21,7 +21,12 @@ try:
         build_new_email_notification,
     )
     from common.pii import redact_and_map, reidentify
-    from common.openai_client import generate_reply_draft
+    try:
+        from common.openai_client import generate_reply_draft
+    except Exception:
+        # OpenAIクライアント未導入でも起動可能にする
+        def generate_reply_draft(_: str) -> str:  # type: ignore[misc]
+            return ""
 except ImportError:
     # テスト環境用の相対インポート
     from .common.config import load_config
@@ -36,7 +41,11 @@ except ImportError:
         build_new_email_notification,
     )
     from .common.pii import redact_and_map, reidentify
-    from .common.openai_client import generate_reply_draft
+    try:
+        from .common.openai_client import generate_reply_draft
+    except Exception:
+        def generate_reply_draft(_: str) -> str:  # type: ignore[misc]
+            return ""
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
