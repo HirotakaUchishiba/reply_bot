@@ -15,6 +15,16 @@ override.tf.json
 *_override.tf.json
 terraform.tfvars
 *.auto.tfvars
+staging.tfvars
+prod.tfvars
+backend.auto.tfvars
+*.local.tfvars
+# 機密情報を含む可能性のあるファイル
+*secret*
+*credential*
+*key*
+*password*
+*token*
 
 # Local env/config
 .env
