@@ -27,27 +27,30 @@ def get_secret_json(secret_arn: str) -> Dict[str, Any]:
     return json.loads(raw)  # type: ignore[no-any-return]
 
 
-def resolve_slack_credentials(
-    signing_secret_arn: Optional[str], app_secret_arn: Optional[str]
-) -> Dict[str, str]:
-    # Prefer JSON secret containing both
-    if app_secret_arn:
-        data = get_secret_json(app_secret_arn)
-        signing = data.get("signing_secret")
-        bot_token = data.get("bot_token")
-        if not signing or not bot_token:
-            raise ValueError(
-                "Slack app secret JSON must include 'signing_secret' "
-                "and 'bot_token'"
-            )
-        return {"signing_secret": signing, "bot_token": bot_token}
-    if signing_secret_arn:
-        signing = get_secret_string(signing_secret_arn)
-        return {"signing_secret": signing}
-    raise ValueError("Slack secrets are not configured")
+def resolve_slack_credentials(signing_secret_arn: str, app_secret_arn: str) -> Dict[str, str]:
+    signing_secret = get_secret_string(signing_secret_arn)
+    app_secret = get_secret_json(app_secret_arn)
+    return {
+        "bot_token": app_secret.get("bot_token", ""),
+        "signing_secret": signing_secret,
+    }
 
 
-def resolve_openai_api_key(openai_secret_arn: Optional[str]) -> str:
-    if not openai_secret_arn:
-        raise ValueError("OPENAI_API_KEY secret ARN not provided")
-    return get_secret_string(openai_secret_arn)
+def resolve_openai_api_key(api_key_secret_arn: str) -> str:
+    return get_secret_string(api_key_secret_arn)
+
+
+# Gmail OAuth secrets: expected JSON structure in Secrets Manager
+# {
+#   "client_id": "...",
+#   "client_secret": "...",
+#   "refresh_token": "..."
+# }
+
+def resolve_gmail_oauth(app_secret_arn: str) -> Dict[str, str]:
+    creds = get_secret_json(app_secret_arn)
+    return {
+        "client_id": creds.get("client_id", ""),
+        "client_secret": creds.get("client_secret", ""),
+        "refresh_token": creds.get("refresh_token", ""),
+    }
