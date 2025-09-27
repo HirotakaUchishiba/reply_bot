@@ -17,6 +17,11 @@ def get_secret_string(secret_arn: str) -> str:
     raise ValueError("SecretString not found for ARN")
 
 
+def clear_secrets_cache() -> None:
+    """Clear the secrets cache to force fresh retrieval."""
+    get_secret_string.cache_clear()
+
+
 def get_secret_json(secret_arn: str) -> Dict[str, Any]:
     raw = get_secret_string(secret_arn)
     return json.loads(raw)  # type: ignore[no-any-return]
