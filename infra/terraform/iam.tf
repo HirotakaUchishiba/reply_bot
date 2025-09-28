@@ -59,7 +59,8 @@ data "aws_iam_policy_document" "lambda_app_policy" {
     resources = [
       aws_secretsmanager_secret.openai_api_key.arn,
       aws_secretsmanager_secret.slack_app.arn,
-      aws_secretsmanager_secret.gmail_oauth.arn
+      aws_secretsmanager_secret.gmail_oauth.arn,
+      aws_secretsmanager_secret.slack_signing.arn
     ]
   }
 
