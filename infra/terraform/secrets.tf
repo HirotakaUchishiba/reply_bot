@@ -31,3 +31,15 @@ resource "aws_secretsmanager_secret" "gmail_oauth" {
   kms_key_id = null
 }
 
+# Slack signing secret
+variable "secret_name_slack_signing" {
+  type        = string
+  description = "Secrets Manager name for Slack signing secret"
+  default     = "reply-bot/slack/signing-secret"
+}
+
+resource "aws_secretsmanager_secret" "slack_signing" {
+  name       = var.secret_name_slack_signing
+  kms_key_id = null
+}
+
