@@ -120,3 +120,26 @@ wheels/
 # AWS
 .aws/
 .obsidian/workspace.json
+
+# Locally vendored libraries for Lambda
+src/app/apiclient/
+src/app/cachetools/
+src/app/certifi/
+src/app/charset_normalizer/
+src/app/google/
+src/app/google_auth_httplib2.py
+src/app/google_auth_oauthlib/
+src/app/googleapiclient/
+src/app/httplib2/
+src/app/idna/
+src/app/oauthlib/
+src/app/proto/
+src/app/pyasn1/
+src/app/pyasn1_modules/
+src/app/pyparsing/
+src/app/requests/
+src/app/requests_oauthlib/
+src/app/rsa/
+src/app/slack_sdk/
+src/app/uritemplate/
+src/app/urllib3/
