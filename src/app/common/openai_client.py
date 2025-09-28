@@ -3,7 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Optional
 
-from openai import OpenAI
+import json
+import urllib.request
+import urllib.error
 
 try:
     # Lambda環境用の絶対インポート
@@ -18,12 +20,9 @@ except ImportError:
 
 
 @lru_cache(maxsize=1)
-def _get_client() -> OpenAI:
+def _get_api_key() -> str:
     cfg = load_config()
-    api_key = resolve_openai_api_key(
-        cfg.openai_api_key_secret_arn
-    )
-    return OpenAI(api_key=api_key)
+    return resolve_openai_api_key(cfg.openai_api_key_secret_arn)
 
 
 def generate_reply_draft(
@@ -54,15 +53,33 @@ def generate_reply_draft(
     prompt = "\n".join(lines)
 
     try:
-        client = _get_client()
-        # Keep response short for latency
-        resp = client.responses.create(
-            model="gpt-4o-mini",
-            input=prompt,
-            max_output_tokens=400,
+        api_key = _get_api_key()
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": 300,
+        }
+        req = urllib.request.Request(
+            url="https://api.openai.com/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
         )
-        text = resp.output_text or ""
-        return text.strip()
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore")
+        data = json.loads(raw)
+        choices = data.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message", {})
+        content = (message or {}).get("content", "")
+        return str(content or "").strip()
     except Exception as exc:  # pragma: no cover - external call
         log_error("openai generation failed", error=str(exc))
         return ""

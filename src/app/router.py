@@ -21,7 +21,6 @@ try:
         build_new_email_notification,
     )
     from common.pii import redact_and_map, reidentify
-    from common.openai_client import generate_reply_draft
 except ImportError:
     # テスト環境用の相対インポート
     from .common.config import load_config
@@ -36,7 +35,18 @@ except ImportError:
         build_new_email_notification,
     )
     from .common.pii import redact_and_map, reidentify
-    from .common.openai_client import generate_reply_draft
+
+# OpenAI クライアントは任意依存のため、個別にフォールバックを用意
+try:  # pragma: no cover - import-time guard
+    from common.openai_client import generate_reply_draft  # type: ignore
+except Exception:  # pragma: no cover - optional dependency missing
+    def generate_reply_draft(
+        *args: Any, **kwargs: Any
+    ) -> str:  # type: ignore[no-redef]
+        log_info(
+            "OpenAI client not available, skipping reply generation."
+        )
+        return ""
 
 
 def _response(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -137,7 +147,7 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     pii_map = json.loads(str(pii_map_raw))
                 except Exception:
                     pii_map = {}
-                if redacted_body and (time.time() - started) < 1.0:
+                if redacted_body and (time.time() - started) < 2.0:
                     try:
                         draft = generate_reply_draft(redacted_body)
                     except Exception as exc:
