@@ -8,7 +8,7 @@ import json
 from common.config import load_config
 from common.logging import log_error, log_info
 from common.secrets import resolve_gmail_oauth, clear_secrets_cache
-from common.dynamodb_repo import put_context_item
+from common.dynamodb_repo import get_context_item, put_context_item
 from common.pii import redact_and_map
 from slack.client import SlackClient, build_new_email_notification
 
@@ -64,10 +64,29 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         messages = msgs_resp.get("messages", [])
         count = 0
         for m in messages:
+            # DynamoDB で重複排除（同じ Gmail message id の再処理をスキップ）
+            context_id_candidate = m.get("id", "")
+            try:
+                if context_id_candidate and get_context_item(
+                    context_id_candidate
+                ):
+                    log_info(
+                        "skip duplicate gmail message",
+                        context_id=context_id_candidate,
+                    )
+                    continue
+            except Exception as exc:
+                # 読み取り失敗時は安全側で処理を続行
+                log_error("ddb read failed (continue)", error=str(exc))
             msg = (
-                service.users()
+                service
+                .users()
                 .messages()
-                .get(userId="me", id=m["id"], format="full")
+                .get(
+                    userId="me",
+                    id=m["id"],
+                    format="full",
+                )
                 .execute()
             )
             headers = {
