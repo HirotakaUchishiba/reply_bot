@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any, Dict
+from typing import Any, Dict, cast
 import time
 
 from urllib.parse import parse_qs
+from urllib.parse import unquote_plus
+import boto3
+from email import policy
+from email.parser import BytesParser
+from email.message import EmailMessage
 
 try:
     # Lambda環境用の絶対インポート
@@ -242,19 +247,54 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         log_error("unknown slack event type", event_type=str(event_type))
         return _response(400, {"error": "unsupported"})
 
-    # SES event path: parse and persist context, then Slack notify
+    # S3 (SES inbound) event path: fetch raw email from S3,
+    # parse, persist, then notify via Slack
     if "Records" in event:
         try:
             record = (event.get("Records") or [])[0]
-            mail = (record.get("ses") or {}).get("mail") or {}
-            source = mail.get("source", "")
-            subject = mail.get("commonHeaders", {}).get("subject", "")
-            # Simplification: assume text content available under custom field
-            # In real SES inbound, need S3 object fetch. Placeholder here.
-            body_raw = (record.get("body") or "")
+            # If S3 event
+            if "s3" in record:
+                s3_info = record.get("s3", {})
+                bucket = (s3_info.get("bucket") or {}).get("name", "")
+                key_enc = (s3_info.get("object") or {}).get("key", "")
+                key = unquote_plus(key_enc)
+                s3 = boto3.client("s3")
+                obj = s3.get_object(Bucket=bucket, Key=key)
+                raw_bytes = obj["Body"].read()
+                parser = BytesParser(
+                    policy=policy.default  # type: ignore[arg-type]
+                )
+                parsed = parser.parsebytes(raw_bytes)
+                msg = cast(EmailMessage, parsed)
+                # Headers
+                source = str(msg.get("From", ""))
+                subject = str(msg.get("Subject", ""))
+                # Extract body text (prefer text/plain)
+                body_raw = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        ctype = part.get_content_type()
+                        if ctype == "text/plain":
+                            body_raw = part.get_content()
+                            break
+                    if not body_raw:
+                        for part in msg.walk():
+                            if part.get_content_type() == "text/html":
+                                body_raw = part.get_content()
+                                break
+                else:
+                    body_raw = msg.get_content()
+                # Use Message-ID if available, otherwise S3 key as context_id
+                context_id = str(msg.get("Message-ID", "")).strip() or key
+            else:
+                # Backward compatibility: legacy SES direct event
+                # (not used when S3 notifications enabled)
+                mail = (record.get("ses") or {}).get("mail") or {}
+                source = mail.get("source", "")
+                subject = mail.get("commonHeaders", {}).get("subject", "")
+                body_raw = (record.get("body") or "")
+                context_id = mail.get("messageId", "")
             redacted, pii_map = redact_and_map(body_raw)
-            # Create context
-            context_id = mail.get("messageId", "")
             item = {
                 "context_id": context_id,
                 "sender_email": source,
@@ -271,20 +311,20 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 # Clear secrets cache to ensure fresh token retrieval
                 clear_secrets_cache()
                 creds = resolve_slack_credentials(
-                    cfg.slack_signing_secret_arn, cfg.slack_app_secret_arn
+                    cfg.slack_signing_secret_arn,
+                    cfg.slack_app_secret_arn,
                 )
                 bot_token = creds.get("bot_token", "")
                 if bot_token and cfg.slack_channel_id:
-                    preview = (
-                        (redacted or body_raw or "").strip().replace("\r", "")
-                    )
+                    text_for_preview = (redacted or body_raw or "")
+                    preview = text_for_preview.strip().replace("\r", "")
                     if len(preview) > 400:
                         preview = preview[:400] + "…"
                     blocks = build_new_email_notification(
                         context_id=context_id,
                         sender=source,
                         subject=subject,
-                        preview_text=preview or "(本文なし)",
+                        preview_text=(preview or "(本文なし)"),
                     )
                     SlackClient(bot_token).post_message(
                         channel=cfg.slack_channel_id,

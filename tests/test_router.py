@@ -21,29 +21,37 @@ def _payload_form(data: dict) -> str:
 class TestEventRouter:
     """Test cases for event routing functionality"""
 
-    def test_ses_event_routing(self) -> None:
-        ses_event = {
+    def test_ses_event_routing_via_s3(self) -> None:
+        s3_event = {
             "Records": [
                 {
-                    "ses": {
-                        "mail": {
-                            "source": "test@example.com",
-                            "commonHeaders": {"subject": "Test Subject"},
-                            "messageId": "test-message-id",
-                        }
-                    },
-                    "body": "Test email body",
+                    "s3": {
+                        "bucket": {"name": "reply-bot-inbound-staging"},
+                        "object": {"key": "inbound/abc.eml"},
+                    }
                 }
             ]
         }
 
+        # Construct a simple EML
+        eml = (
+            "From: test@example.com\r\n"
+            "Subject: Test Subject\r\n"
+            "Message-ID: <test-message-id>\r\n"
+            "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+            "Test email body"
+        ).encode("utf-8")
+
+        class _Body:
+            def read(self):
+                return eml
+
         with (
             patch("src.app.router.load_config") as mock_config,
+            patch("src.app.router.boto3.client") as mock_boto,
             patch("src.app.router.redact_and_map") as mock_redact,
             patch("src.app.router.put_context_item") as mock_put,
-            patch(
-                "src.app.router.resolve_slack_credentials"
-            ) as mock_creds,
+            patch("src.app.router.resolve_slack_credentials") as mock_creds,
             patch("src.app.router.SlackClient") as mock_slack,
         ):
             mock_config.return_value = MagicMock(
@@ -55,15 +63,16 @@ class TestEventRouter:
                 ),
                 slack_channel_id="C1234567890",
             )
+            mock_boto.return_value.get_object.return_value = {"Body": _Body()}
             mock_redact.return_value = ("Test email body", {})
             mock_creds.return_value = {
                 "bot_token": "xoxb-test-token",
-                "signing_secret": "s"
+                "signing_secret": "s",
             }
             mock_slack_instance = MagicMock()
             mock_slack.return_value = mock_slack_instance
 
-            response = handle_event(ses_event)
+            response = handle_event(s3_event)
 
             assert response["statusCode"] == 200
             assert "ses event accepted" in response["body"]
