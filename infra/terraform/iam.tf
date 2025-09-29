@@ -84,6 +84,18 @@ data "aws_iam_policy_document" "lambda_app_policy" {
       aws_sqs_queue.dlq.arn
     ]
   }
+
+  statement {
+    sid = "S3InboundRead"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket"
+    ]
+    resources = [
+      aws_s3_bucket.inbound.arn,
+      "${aws_s3_bucket.inbound.arn}/*"
+    ]
+  }
 }
 
 resource "aws_iam_policy" "lambda_app" {

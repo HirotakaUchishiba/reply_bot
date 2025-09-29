@@ -26,6 +26,8 @@ resource "aws_lambda_function" "app" {
       SENDER_EMAIL_ADDRESS         = var.sender_email_address
       SLACK_CHANNEL_ID             = var.slack_channel_id
       GMAIL_OAUTH_SECRET_ARN       = aws_secretsmanager_secret.gmail_oauth.arn
+      SES_INBOUND_BUCKET_NAME      = aws_s3_bucket.inbound.bucket
+      SES_INBOUND_PREFIX           = "inbound/"
     }
   }
 

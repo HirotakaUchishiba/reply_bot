@@ -12,6 +12,8 @@ class AppConfig:
     sender_email_address: str
     slack_channel_id: str
     gmail_oauth_secret_arn: str
+    ses_inbound_bucket_name: str
+    ses_inbound_prefix: str
 
 
 def load_config() -> AppConfig:
@@ -24,4 +26,6 @@ def load_config() -> AppConfig:
         sender_email_address=os.getenv("SENDER_EMAIL_ADDRESS", ""),
         slack_channel_id=os.getenv("SLACK_CHANNEL_ID", ""),
         gmail_oauth_secret_arn=os.getenv("GMAIL_OAUTH_SECRET_ARN", ""),
+        ses_inbound_bucket_name=os.getenv("SES_INBOUND_BUCKET_NAME", ""),
+        ses_inbound_prefix=os.getenv("SES_INBOUND_PREFIX", ""),
     )
