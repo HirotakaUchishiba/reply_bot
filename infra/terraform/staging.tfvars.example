@@ -10,7 +10,7 @@ ddb_ttl_attribute   = "ttl_epoch"
 secret_name_openai_api_key = "reply-bot/stg/openai/api-key"
 secret_name_slack_app      = "reply-bot/stg/slack/app-creds"
 
-ses_rule_set_name = "reply-bot-staging"
+ses_rule_set_name = "reply-bot-rule-set"
 ses_recipients    = ["support@example.com"]
 
 sender_email_address = "support@your-reply-domain.com"
