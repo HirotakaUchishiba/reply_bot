@@ -73,7 +73,7 @@ resource "aws_lambda_function" "gmail_poller" {
 
 resource "aws_cloudwatch_event_rule" "gmail_poll_schedule" {
   name                = "reply-bot-gmail-poll-${terraform.workspace}"
-  schedule_expression = "rate(60 minutes)"
+  schedule_expression = "rate(24 hours)"
 }
 
 resource "aws_cloudwatch_event_target" "gmail_poll_target" {
