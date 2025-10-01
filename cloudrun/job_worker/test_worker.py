@@ -16,7 +16,7 @@ from config import JobWorkerConfig
 
 class TestCallOpenAI:
     """Test OpenAI API calls."""
-    
+
     def test_empty_redacted_body(self):
         """Test with empty redacted body."""
         config = JobWorkerConfig(
@@ -26,7 +26,7 @@ class TestCallOpenAI:
         )
         result = _call_openai("", config)
         assert result == ""
-    
+
     def test_no_api_key(self):
         """Test with no API key."""
         config = JobWorkerConfig(
@@ -36,7 +36,7 @@ class TestCallOpenAI:
         )
         result = _call_openai("test body", config)
         assert result == ""
-    
+
     @patch('urllib.request.urlopen')
     def test_successful_generation(self, mock_urlopen):
         """Test successful OpenAI generation."""
@@ -50,39 +50,39 @@ class TestCallOpenAI:
             }]
         }).encode('utf-8')
         mock_urlopen.return_value.__enter__.return_value = mock_response
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
+
         result = _call_openai("test body", config)
         assert result == "Generated reply text"
-    
+
     @patch('urllib.request.urlopen')
     def test_api_error(self, mock_urlopen):
         """Test OpenAI API error."""
         mock_urlopen.side_effect = Exception("API Error")
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
+
         result = _call_openai("test body", config)
         assert result == ""
 
 
 class TestReidentifyPII:
     """Test PII reidentification."""
-    
+
     def test_no_pii_map(self):
         """Test with no PII map."""
         result = _reidentify_pii("test text", {})
         assert result == "test text"
-    
+
     def test_with_pii_map(self):
         """Test with PII map."""
         text = "Hello [PERSON_1], your email [EMAIL_1] is confirmed."
@@ -91,12 +91,15 @@ class TestReidentifyPII:
             "[EMAIL_1]": "john@example.com"
         }
         result = _reidentify_pii(text, pii_map)
-        assert result == "Hello John Doe, your email john@example.com is confirmed."
+        expected = (
+            "Hello John Doe, your email john@example.com is confirmed."
+        )
+        assert result == expected
 
 
 class TestGetDynamoDBContext:
     """Test DynamoDB context retrieval."""
-    
+
     def test_no_context_id(self):
         """Test with no context ID."""
         config = JobWorkerConfig(
@@ -106,7 +109,7 @@ class TestGetDynamoDBContext:
         )
         result = _get_dynamodb_context("", config)
         assert result == {}
-    
+
     @patch('boto3.resource')
     def test_successful_retrieval(self, mock_boto3):
         """Test successful DynamoDB retrieval."""
@@ -122,35 +125,35 @@ class TestGetDynamoDBContext:
         mock_dynamodb = MagicMock()
         mock_dynamodb.Table.return_value = mock_table
         mock_boto3.return_value = mock_dynamodb
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
+
         result = _get_dynamodb_context("test-id", config)
         assert result['context_id'] == 'test-id'
         assert result['body_redacted'] == 'test body'
-    
+
     @patch('boto3.resource')
     def test_dynamodb_error(self, mock_boto3):
         """Test DynamoDB error."""
         mock_boto3.side_effect = Exception("DynamoDB Error")
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
+
         result = _get_dynamodb_context("test-id", config)
         assert result == {}
 
 
 class TestUpdateSlackModal:
     """Test Slack modal updates."""
-    
+
     def test_no_bot_token(self):
         """Test with no bot token."""
         config = JobWorkerConfig(
@@ -158,9 +161,11 @@ class TestUpdateSlackModal:
             slack_bot_token="",
             ddb_table_name="test-table"
         )
-        result = _update_slack_modal("test-id", "context-id", "test text", config)
+        result = _update_slack_modal(
+            "test-id", "context-id", "test text", config
+        )
         assert result is False
-    
+
     def test_no_external_id(self):
         """Test with no external ID."""
         config = JobWorkerConfig(
@@ -170,23 +175,25 @@ class TestUpdateSlackModal:
         )
         result = _update_slack_modal("", "context-id", "test text", config)
         assert result is False
-    
+
     @patch('slack_sdk.WebClient')
     def test_successful_update(self, mock_webclient):
         """Test successful Slack modal update."""
         mock_client = MagicMock()
         mock_webclient.return_value = mock_client
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
-        result = _update_slack_modal("test-id", "context-id", "test text", config)
+
+        result = _update_slack_modal(
+            "test-id", "context-id", "test text", config
+        )
         assert result is True
         mock_client.views_update.assert_called_once()
-    
+
     @patch('slack_sdk.WebClient')
     def test_slack_api_error(self, mock_webclient):
         """Test Slack API error."""
@@ -194,20 +201,22 @@ class TestUpdateSlackModal:
         mock_client = MagicMock()
         mock_client.views_update.side_effect = SlackApiError("API Error", {})
         mock_webclient.return_value = mock_client
-        
+
         config = JobWorkerConfig(
             openai_api_key="test-key",
             slack_bot_token="test-token",
             ddb_table_name="test-table"
         )
-        
-        result = _update_slack_modal("test-id", "context-id", "test text", config)
+
+        result = _update_slack_modal(
+            "test-id", "context-id", "test text", config
+        )
         assert result is False
 
 
 class TestMain:
     """Test main function."""
-    
+
     @patch.dict(os.environ, {
         'OPENAI_API_KEY': 'test-key',
         'SLACK_BOT_TOKEN': 'test-token',
@@ -225,11 +234,11 @@ class TestMain:
         """Test successful main execution."""
         mock_call.return_value = "Generated text"
         mock_update.return_value = True
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0
-    
+
     @patch.dict(os.environ, {
         'OPENAI_API_KEY': '',
         'SLACK_BOT_TOKEN': 'test-token',
@@ -240,7 +249,7 @@ class TestMain:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 1
-    
+
     @patch.dict(os.environ, {
         'OPENAI_API_KEY': 'test-key',
         'SLACK_BOT_TOKEN': 'test-token',

@@ -22,11 +22,11 @@ def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
     if not redacted_body:
         logger.warning("Empty redacted body provided")
         return ""
-    
+
     if not config.openai_api_key:
         logger.error("OpenAI API key not provided")
         return ""
-    
+
     lines = [
         "あなたは日本語のCS担当者です。以下の問い合わせに対し、",
         "丁寧で簡潔な返信文案を日本語で作成してください。",
@@ -40,7 +40,7 @@ def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
         "",
     ]
     prompt = "\n".join(lines)
-    
+
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
@@ -51,7 +51,7 @@ def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
         ],
         "max_tokens": 300,
     }
-    
+
     try:
         req = urllib.request.Request(
             url="https://api.openai.com/v1/chat/completions",
@@ -62,7 +62,9 @@ def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=config.openai_timeout) as resp:
+        with urllib.request.urlopen(
+            req, timeout=config.openai_timeout
+        ) as resp:
             raw = resp.read().decode("utf-8", errors="ignore")
         data: Dict[str, Any] = json.loads(raw)
         choices = data.get("choices") or []
@@ -83,57 +85,62 @@ def _reidentify_pii(text: str, pii_map: Dict[str, str]) -> str:
     """Restore PII placeholders with original values."""
     if not pii_map:
         return text
-    
+
     result = text
     for placeholder, original in pii_map.items():
         result = result.replace(placeholder, original)
     return result
 
 
-def _get_dynamodb_context(context_id: str, config: JobWorkerConfig) -> Dict[str, Any]:
+def _get_dynamodb_context(
+    context_id: str, config: JobWorkerConfig
+) -> Dict[str, Any]:
     """Retrieve context from DynamoDB via AWS API."""
     if not context_id:
         return {}
-    
+
     try:
         import boto3
-        from botocore.exceptions import ClientError
-        
+
         # Initialize DynamoDB client
-        dynamodb = boto3.resource('dynamodb', region_name=config.aws_region)
+        dynamodb = boto3.resource(
+            'dynamodb', region_name=config.aws_region
+        )
         table = dynamodb.Table(config.ddb_table_name)
-        
+
         # Get item
         response = table.get_item(Key={'context_id': context_id})
         item = response.get('Item', {})
-        
+
         if item:
             logger.info(f"Retrieved context for {context_id}")
         else:
             logger.warning(f"No context found for {context_id}")
-        
+
         return item
     except Exception as exc:
         logger.error(f"Failed to retrieve DynamoDB context: {exc}")
         return {}
 
 
-def _update_slack_modal(external_id: str, context_id: str, final_text: str, config: JobWorkerConfig) -> bool:
+def _update_slack_modal(
+    external_id: str, context_id: str, final_text: str, config: JobWorkerConfig
+) -> bool:
     """Update Slack modal with generated text."""
     try:
         from slack_sdk import WebClient
         from slack_sdk.errors import SlackApiError
-        
+
         if not config.slack_bot_token:
             logger.error("SLACK_BOT_TOKEN not configured")
             return False
-        
+
         if not external_id:
             logger.error("external_id not provided")
             return False
-        
+
         client = WebClient(token=config.slack_bot_token)
-        
+
         view = {
             "type": "modal",
             "external_id": external_id,
@@ -166,11 +173,11 @@ def _update_slack_modal(external_id: str, context_id: str, final_text: str, conf
                 },
             ],
         }
-        
+
         client.views_update(external_id=external_id, view=view)
         logger.info(f"Successfully updated Slack modal for {external_id}")
         return True
-        
+
     except SlackApiError as exc:
         logger.error(f"Slack API error: {exc}")
         return False
@@ -182,13 +189,13 @@ def _update_slack_modal(external_id: str, context_id: str, final_text: str, conf
 def main() -> None:
     """Main entry point for Cloud Run Job worker."""
     logger.info("Starting Cloud Run Job worker")
-    
+
     try:
         config = JobWorkerConfig.from_env()
     except ValueError as exc:
         logger.error(f"Configuration error: {exc}")
         sys.exit(1)
-    
+
     # Expect JSON payload via env (e.g., Cloud Run job args -> env)
     payload_raw = os.getenv("JOB_PAYLOAD", "{}")
     try:
@@ -199,13 +206,16 @@ def main() -> None:
 
     context_id = str(payload.get("context_id", ""))
     external_id = str(payload.get("external_id", ""))
-    
-    logger.info(f"Processing job for context_id: {context_id}, external_id: {external_id}")
-    
+
+    logger.info(
+        f"Processing job for context_id: {context_id}, "
+        f"external_id: {external_id}"
+    )
+
     if not context_id:
         logger.error("context_id is required")
         sys.exit(1)
-    
+
     if not external_id:
         logger.error("external_id is required")
         sys.exit(1)
@@ -213,7 +223,7 @@ def main() -> None:
     # Get context from DynamoDB if not provided in payload
     redacted_body = str(payload.get("redacted_body", ""))
     pii_map: Dict[str, str] = payload.get("pii_map") or {}
-    
+
     if not redacted_body:
         logger.info("Retrieving context from DynamoDB")
         context_item = _get_dynamodb_context(context_id, config)
@@ -235,11 +245,14 @@ def main() -> None:
     # Generate reply with OpenAI
     logger.info("Generating reply with OpenAI")
     draft = _call_openai(redacted_body, config)
-    
+
     if not draft:
         logger.error("Failed to generate reply draft")
-        draft = "申し訳ございませんが、返信文案の生成に失敗しました。手動で入力してください。"
-    
+        draft = (
+            "申し訳ございませんが、返信文案の生成に失敗しました。"
+            "手動で入力してください。"
+        )
+
     # Restore PII in the generated text
     final_text = _reidentify_pii(draft, pii_map)
     logger.info(f"Final text length: {len(final_text)}")
@@ -247,7 +260,7 @@ def main() -> None:
     # Update Slack modal
     logger.info("Updating Slack modal")
     success = _update_slack_modal(external_id, context_id, final_text, config)
-    
+
     if success:
         logger.info("Job completed successfully")
         sys.exit(0)
@@ -258,5 +271,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
