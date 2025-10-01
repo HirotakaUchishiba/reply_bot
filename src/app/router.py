@@ -139,7 +139,7 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     context_id = json.loads(val).get("context_id", "")
                 except Exception:
                     context_id = ""
-            # Prepare initial text with time budget for generation (<~2s)
+            # Prepare initial text. If async endpoint is configured, we won't block.
             bot_token = creds.get("bot_token", "")
             initial_text = "ここにAIが生成した返信文案が表示されます。"
             started = time.time()
@@ -152,7 +152,13 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     pii_map = json.loads(str(pii_map_raw))
                 except Exception:
                     pii_map = {}
-                if redacted_body and (time.time() - started) < 15.0:
+                # Do quick inline generation only when async endpoint is not set
+                # and within a tight time budget.
+                if (
+                    redacted_body
+                    and not cfg.async_generation_endpoint
+                    and (time.time() - started) < 3.0
+                ):
                     try:
                         draft = generate_reply_draft(redacted_body)
                     except Exception as exc:
@@ -170,13 +176,43 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             if bot_token and trigger_id:
                 try:
                     slack = SlackClient(bot_token)
+                    external_id = f"ai-reply-{context_id}" if context_id else None
                     view = build_ai_reply_modal(
                         context_id=context_id or "",
                         initial_text=initial_text,
+                        external_id=external_id,
                     )
                     slack.open_modal(trigger_id=trigger_id, view=view)
                 except Exception as exc:
                     log_error("failed to open slack modal", error=str(exc))
+            # Trigger async generation if configured
+            try:
+                if cfg.async_generation_endpoint and context_id:
+                    payload = {
+                        "context_id": context_id,
+                        "external_id": f"ai-reply-{context_id}",
+                        "stage": cfg.stage,
+                    }
+                    headers = {
+                        "Content-Type": "application/json",
+                    }
+                    if cfg.async_generation_auth_header:
+                        headers["Authorization"] = cfg.async_generation_auth_header
+                    import urllib.request
+                    req = urllib.request.Request(
+                        url=cfg.async_generation_endpoint,
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers=headers,
+                        method="POST",
+                    )
+                    # Fire-and-forget; do not block. Small timeout.
+                    try:
+                        urllib.request.urlopen(req, timeout=1)
+                    except Exception:
+                        pass
+            except Exception as exc:
+                log_error("failed to trigger async generation", error=str(exc))
+
             return _response(200, {"ack": True})
         if event_type == "view_submission":
             log_info("received view_submission")

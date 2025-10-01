@@ -28,6 +28,8 @@ resource "aws_lambda_function" "app" {
       GMAIL_OAUTH_SECRET_ARN       = aws_secretsmanager_secret.gmail_oauth.arn
       SES_INBOUND_BUCKET_NAME      = aws_s3_bucket.inbound.bucket
       SES_INBOUND_PREFIX           = "inbound/"
+      ASYNC_GENERATION_ENDPOINT    = var.async_generation_endpoint
+      ASYNC_GENERATION_AUTH_HEADER = var.async_generation_auth_header
     }
   }
 

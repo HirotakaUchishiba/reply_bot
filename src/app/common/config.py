@@ -14,6 +14,9 @@ class AppConfig:
     gmail_oauth_secret_arn: str
     ses_inbound_bucket_name: str
     ses_inbound_prefix: str
+    # Async generation (Cloud Run, etc.)
+    async_generation_endpoint: str
+    async_generation_auth_header: str
 
 
 def load_config() -> AppConfig:
@@ -28,4 +31,8 @@ def load_config() -> AppConfig:
         gmail_oauth_secret_arn=os.getenv("GMAIL_OAUTH_SECRET_ARN", ""),
         ses_inbound_bucket_name=os.getenv("SES_INBOUND_BUCKET_NAME", ""),
         ses_inbound_prefix=os.getenv("SES_INBOUND_PREFIX", ""),
+        async_generation_endpoint=os.getenv("ASYNC_GENERATION_ENDPOINT", ""),
+        async_generation_auth_header=os.getenv(
+            "ASYNC_GENERATION_AUTH_HEADER", ""
+        ),
     )
