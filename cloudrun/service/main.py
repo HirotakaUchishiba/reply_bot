@@ -22,6 +22,7 @@ REGION = os.getenv("GCP_REGION", "asia-northeast1")
 JOB_NAME = os.getenv("CLOUD_RUN_JOB_NAME", "reply-bot-generator")
 SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT_EMAIL")
 SLACK_SIGNING_SECRET_NAME = os.getenv("SLACK_SIGNING_SECRET_NAME", "slack-signing-secret")
+SLACK_BOT_TOKEN_SECRET_NAME = os.getenv("SLACK_BOT_TOKEN_SECRET_NAME", "slack-bot-token-staging")
 
 
 def get_secret(secret_name: str) -> str:
@@ -34,6 +35,71 @@ def get_secret(secret_name: str) -> str:
     except Exception as e:
         logger.error(f"Failed to get secret {secret_name}: {e}")
         raise
+
+
+def get_slack_bot_token() -> str:
+    """Get Slack bot token from Secret Manager"""
+    try:
+        return get_secret(SLACK_BOT_TOKEN_SECRET_NAME)
+    except Exception as e:
+        logger.error(f"Failed to get Slack bot token: {e}")
+        return ""
+
+
+def open_slack_modal(trigger_id: str, context_id: str) -> bool:
+    """Open Slack modal for reply generation"""
+    try:
+        from slack_sdk import WebClient
+        from slack_sdk.errors import SlackApiError
+        
+        bot_token = get_slack_bot_token()
+        if not bot_token:
+            logger.error("Slack bot token not available")
+            return False
+        
+        client = WebClient(token=bot_token)
+        
+        # Create modal view
+        view = {
+            "type": "modal",
+            "callback_id": "ai_reply_modal_submission",
+            "private_metadata": json.dumps({"context_id": context_id}),
+            "title": {"type": "plain_text", "text": "AI返信アシスタント"},
+            "submit": {"type": "plain_text", "text": "この内容でメールを送信"},
+            "close": {"type": "plain_text", "text": "閉じる"},
+            "external_id": f"ai-reply-{context_id}",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "返信文案の確認・編集"},
+                },
+                {
+                    "type": "input",
+                    "block_id": "editable_reply_block",
+                    "label": {
+                        "type": "plain_text",
+                        "text": "以下の返信文案を編集し、送信してください。",
+                    },
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "editable_reply_input",
+                        "multiline": True,
+                        "initial_value": "AIが返信文案を生成中です。しばらくお待ちください...",
+                    },
+                },
+            ],
+        }
+        
+        client.views_open(trigger_id=trigger_id, view=view)
+        logger.info(f"Opened Slack modal for context_id: {context_id}")
+        return True
+        
+    except SlackApiError as e:
+        logger.error(f"Slack API error: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to open Slack modal: {e}")
+        return False
 
 
 def verify_slack_signature(timestamp: str, signature: str, body: bytes) -> bool:
@@ -179,16 +245,26 @@ def slack_events():
                     try:
                         value_data = json.loads(action.get("value", "{}"))
                         context_id = value_data.get("context_id", "")
+                        trigger_id = payload.get("trigger_id", "")
                         external_id = f"ai-reply-{context_id}" if context_id else ""
                         stage = os.getenv("STAGE", "staging")
                         
-                        if context_id:
-                            # Trigger Cloud Run Job
-                            success = trigger_cloud_run_job(context_id, external_id, stage)
-                            if success:
-                                return jsonify({"status": "job_triggered"}), 200
+                        if context_id and trigger_id:
+                            # Open modal immediately
+                            modal_success = open_slack_modal(trigger_id, context_id)
+                            if not modal_success:
+                                logger.error("Failed to open Slack modal")
+                                return jsonify({"error": "Failed to open modal"}), 500
+                            
+                            # Trigger Cloud Run Job for async generation
+                            job_success = trigger_cloud_run_job(context_id, external_id, stage)
+                            if job_success:
+                                return jsonify({"status": "modal_opened_and_job_triggered"}), 200
                             else:
-                                return jsonify({"error": "Failed to trigger job"}), 500
+                                logger.warning("Modal opened but job trigger failed")
+                                return jsonify({"status": "modal_opened"}), 200
+                        else:
+                            return jsonify({"error": "Missing context_id or trigger_id"}), 400
                     except Exception as e:
                         logger.error(f"Error processing block_actions: {e}")
                         return jsonify({"error": "Processing failed"}), 500
