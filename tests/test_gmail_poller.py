@@ -78,9 +78,15 @@ class TestGmailPoller:
             patch("src.app.gmail_poller.redact_and_map") as mock_redact,
         ):
             mock_cfg.return_value = MagicMock(
-                gmail_oauth_secret_arn="arn:aws:secretsmanager:region:acct:secret:x",
-                slack_signing_secret_arn="arn:aws:secretsmanager:region:acct:secret:y",
-                slack_app_secret_arn="arn:aws:secretsmanager:region:acct:secret:z",
+                gmail_oauth_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:x"
+                ),
+                slack_signing_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:y"
+                ),
+                slack_app_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:z"
+                ),
                 slack_channel_id="C123",
             )
             mock_oauth.return_value = {
@@ -127,9 +133,15 @@ class TestGmailPoller:
             patch("src.app.gmail_poller.redact_and_map") as mock_redact,
         ):
             mock_cfg.return_value = MagicMock(
-                gmail_oauth_secret_arn="arn:aws:secretsmanager:region:acct:secret:x",
-                slack_signing_secret_arn="arn:aws:secretsmanager:region:acct:secret:y",
-                slack_app_secret_arn="arn:aws:secretsmanager:region:acct:secret:z",
+                gmail_oauth_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:x"
+                ),
+                slack_signing_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:y"
+                ),
+                slack_app_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:z"
+                ),
                 slack_channel_id="C123",
             )
             mock_oauth.return_value = {
@@ -139,6 +151,7 @@ class TestGmailPoller:
             }
             mock_gmail.return_value = _MockGmailService(messages)
             # first id exists, second does not
+
             def _get(cid):
                 return {"context_id": cid} if cid == "dup" else None
 
@@ -164,7 +177,9 @@ class TestGmailPoller:
             patch("src.app.gmail_poller._get_gmail_service") as mock_gmail,
         ):
             mock_cfg.return_value = MagicMock(
-                gmail_oauth_secret_arn="arn:aws:secretsmanager:region:acct:secret:x",
+                gmail_oauth_secret_arn=(
+                    "arn:aws:secretsmanager:region:acct:secret:x"
+                ),
             )
             mock_oauth.return_value = {
                 "client_id": "id",
@@ -176,5 +191,3 @@ class TestGmailPoller:
             response = handler({}, None)
 
             assert response["statusCode"] == 500
-
-
