@@ -38,3 +38,9 @@ variable "ddb_table_name" {
   description = "DynamoDB table name"
   type        = string
 }
+
+variable "auth_token" {
+  description = "Authentication token for Cloud Run service"
+  type        = string
+  sensitive   = true
+}

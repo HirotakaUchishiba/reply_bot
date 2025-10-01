@@ -48,9 +48,20 @@ validate_env() {
         missing_vars+=("DDB_TABLE_NAME")
     fi
     
+    if [[ -z "${AUTH_TOKEN:-}" ]]; then
+        missing_vars+=("AUTH_TOKEN")
+    fi
+    
     if [[ ${#missing_vars[@]} -gt 0 ]]; then
         log_error "Missing required environment variables: ${missing_vars[*]}"
         log_error "Please set these variables before running the script"
+        exit 1
+    fi
+    
+    # Validate GCP project access
+    if ! gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
+        log_error "Cannot access GCP project: ${PROJECT_ID}"
+        log_error "Please ensure you have access to this project and are authenticated"
         exit 1
     fi
 }
@@ -86,8 +97,8 @@ build_and_push_images() {
     # Build job image
     log_info "Building job image..."
     cd cloudrun/job_worker
-    docker build -t "${image_tag}/reply-generator:latest" .
-    docker push "${image_tag}/reply-generator:latest"
+    docker build -t "${image_tag}/job-worker:latest" .
+    docker push "${image_tag}/job-worker:latest"
     cd ../..
 }
 
@@ -96,13 +107,31 @@ deploy_infrastructure() {
     log_info "Deploying infrastructure with Terraform..."
     cd infra/terraform/gcp
     
+    # Check if tfvars file exists
+    if [[ ! -f "${ENVIRONMENT}.tfvars" ]]; then
+        log_error "Terraform variables file not found: ${ENVIRONMENT}.tfvars"
+        log_error "Please create this file from ${ENVIRONMENT}.tfvars.example"
+        exit 1
+    fi
+    
     # Initialize Terraform if needed
     if [[ ! -d ".terraform" ]]; then
+        log_info "Initializing Terraform..."
         terraform init
     fi
     
+    # Validate Terraform configuration
+    log_info "Validating Terraform configuration..."
+    if ! terraform validate; then
+        log_error "Terraform validation failed"
+        exit 1
+    fi
+    
     # Plan and apply
+    log_info "Planning Terraform deployment..."
     terraform plan -var-file="${ENVIRONMENT}.tfvars" -out=tfplan
+    
+    log_info "Applying Terraform deployment..."
     terraform apply tfplan
     
     cd ../../..
@@ -159,7 +188,15 @@ main() {
     log_info "1. Update Slack Request URL to: ${service_url}/slack/events"
     log_info "2. Update Lambda environment variables:"
     log_info "   ASYNC_GENERATION_ENDPOINT=${service_url}/async/generate"
-    log_info "   ASYNC_GENERATION_AUTH_HEADER=Bearer your-auth-token"
+    log_info "   ASYNC_GENERATION_AUTH_HEADER=Bearer ${AUTH_TOKEN}"
+    log_info ""
+    log_info "3. Update secrets in Google Secret Manager:"
+    log_info "   - slack-signing-secret-${ENVIRONMENT}"
+    log_info "   - slack-bot-token-${ENVIRONMENT}"
+    log_info "   - openai-api-key-${ENVIRONMENT}"
+    log_info ""
+    log_info "4. Test the deployment:"
+    log_info "   curl ${service_url}/health"
 }
 
 # Run main function
