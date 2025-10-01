@@ -4,11 +4,10 @@ from typing import Any, Dict
 import json
 import os
 
-from flask import Flask, request, jsonify
-from slack_sdk import WebClient
+from flask import Flask, request, jsonify  # type: ignore[import-not-found]
 from google.auth import default as google_auth_default
 from google.auth.transport.requests import Request as GoogleAuthRequest
-import requests
+import requests  # type: ignore
 
 
 app = Flask(__name__)
@@ -44,20 +43,33 @@ def async_generate() -> Any:
         job_name = os.getenv("JOB_NAME", "reply-bot-job")
         payload = {
             "jobs.run": {
-                "name": f"projects/{project}/locations/{region}/jobs/{job_name}",
+                "name": (
+                    f"projects/{project}/locations/{region}/jobs/{job_name}"
+                ),
                 "overrides": {
                     "containerOverrides": [
                         {
                             "name": "worker",
                             "env": [
-                                {"name": "JOB_PAYLOAD", "value": json.dumps({
-                                    "context_id": context_id,
-                                    "external_id": external_id,
-                                    "redacted_body": redacted_body,
-                                    "pii_map": pii_map,
-                                })},
-                                {"name": "OPENAI_API_KEY", "value": os.getenv("OPENAI_API_KEY", "")},
-                                {"name": "SLACK_BOT_TOKEN", "value": os.getenv("SLACK_BOT_TOKEN", "")},
+                                {
+                                    "name": "JOB_PAYLOAD",
+                                    "value": json.dumps(
+                                        {
+                                            "context_id": context_id,
+                                            "external_id": external_id,
+                                            "redacted_body": redacted_body,
+                                            "pii_map": pii_map,
+                                        }
+                                    ),
+                                },
+                                {
+                                    "name": "OPENAI_API_KEY",
+                                    "value": os.getenv("OPENAI_API_KEY", ""),
+                                },
+                                {
+                                    "name": "SLACK_BOT_TOKEN",
+                                    "value": os.getenv("SLACK_BOT_TOKEN", ""),
+                                },
                             ],
                         }
                     ]
@@ -65,12 +77,17 @@ def async_generate() -> Any:
             }
         }
 
-        creds, _ = google_auth_default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds, _ = google_auth_default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
         creds.refresh(GoogleAuthRequest())
         id_token = creds.token
 
         # Use REST call to Cloud Run Jobs (v1 API)
-        url = f"https://run.googleapis.com/apis/run.googleapis.com/v1/namespaces/{project}/jobs/{job_name}:run"
+        url = (
+            "https://run.googleapis.com/apis/run.googleapis.com/v1/"
+            f"namespaces/{project}/jobs/{job_name}:run"
+        )
         headers = {
             "Authorization": f"Bearer {id_token}",
             "Content-Type": "application/json",
@@ -80,7 +97,7 @@ def async_generate() -> Any:
             "apiVersion": "run.googleapis.com/v1",
             "kind": "Job",
             "metadata": {"name": job_name, "namespace": project},
-            # Note: overrides via REST differ by version; keep simple and rely on job's default envs
+            # Note: overrides via REST differ by version; keep simple
         }
         # Fire and forget
         requests.post(url, headers=headers, json=body, timeout=3)
@@ -92,5 +109,3 @@ def async_generate() -> Any:
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
-
-

@@ -139,7 +139,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     context_id = json.loads(val).get("context_id", "")
                 except Exception:
                     context_id = ""
-            # Prepare initial text. If async endpoint is configured, we won't block.
+            # Prepare initial text. If async endpoint is configured, we won't
+            # block beyond a small budget.
             bot_token = creds.get("bot_token", "")
             initial_text = "ここにAIが生成した返信文案が表示されます。"
             started = time.time()
@@ -152,8 +153,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     pii_map = json.loads(str(pii_map_raw))
                 except Exception:
                     pii_map = {}
-                # Do quick inline generation only when async endpoint is not set
-                # and within a tight time budget.
+                # Do quick inline generation only when async endpoint is not
+                # set and within a tight time budget.
                 if (
                     redacted_body
                     and not cfg.async_generation_endpoint
@@ -176,7 +177,9 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             if bot_token and trigger_id:
                 try:
                     slack = SlackClient(bot_token)
-                    external_id = f"ai-reply-{context_id}" if context_id else None
+                    external_id = (
+                        f"ai-reply-{context_id}" if context_id else None
+                    )
                     view = build_ai_reply_modal(
                         context_id=context_id or "",
                         initial_text=initial_text,
@@ -195,15 +198,17 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     }
                     # Include content to avoid cross-cloud data fetch
                     try:
-                        payload["redacted_body"] = redacted_body  # type: ignore[name-defined]
-                        payload["pii_map"] = pii_map  # type: ignore[name-defined]
+                        payload["redacted_body"] = redacted_body
+                        payload["pii_map"] = pii_map
                     except Exception:
                         pass
                     headers = {
                         "Content-Type": "application/json",
                     }
                     if cfg.async_generation_auth_header:
-                        headers["Authorization"] = cfg.async_generation_auth_header
+                        headers["Authorization"] = (
+                            cfg.async_generation_auth_header
+                        )
                     import urllib.request
                     req = urllib.request.Request(
                         url=cfg.async_generation_endpoint,
