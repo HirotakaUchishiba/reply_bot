@@ -137,18 +137,23 @@ resource "google_cloud_run_v2_job" "reply_generator" {
         }
         
         env {
-          name  = "AWS_ACCESS_KEY_ID"
-          value = var.aws_access_key_id
-        }
-        
-        env {
-          name  = "AWS_SECRET_ACCESS_KEY"
-          value = var.aws_secret_access_key
-        }
-        
-        env {
           name  = "AWS_REGION"
           value = var.aws_region
+        }
+        
+        env {
+          name  = "AWS_ROLE_ARN"
+          value = var.aws_workload_identity_role_arn
+        }
+        
+        env {
+          name  = "GCP_SERVICE_ACCOUNT_EMAIL"
+          value = google_service_account.cloudrun.email
+        }
+        
+        env {
+          name  = "WORKLOAD_IDENTITY_PROVIDER"
+          value = google_iam_workload_identity_pool_provider.aws_provider.name
         }
         
         env {
@@ -186,6 +191,42 @@ resource "google_service_account" "cloudrun" {
   account_id   = "reply-bot-cloudrun-${var.environment}"
   display_name = "Reply Bot Cloud Run Service Account"
   project      = var.gcp_project_id
+}
+
+# Workload Identity Pool for AWS integration
+resource "google_iam_workload_identity_pool" "aws_pool" {
+  workload_identity_pool_id = "aws-pool-${var.environment}"
+  display_name              = "AWS Workload Identity Pool"
+  description               = "Workload Identity Pool for AWS integration"
+  project                   = var.gcp_project_id
+}
+
+# Workload Identity Pool Provider for AWS
+resource "google_iam_workload_identity_pool_provider" "aws_provider" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.aws_pool.workload_identity_pool_id
+  workload_identity_pool_provider_id = "aws-provider"
+  display_name                       = "AWS Provider"
+  description                        = "AWS OIDC Provider for Workload Identity"
+  project                            = var.gcp_project_id
+
+  attribute_mapping = {
+    "google.subject"        = "assertion.sub"
+    "attribute.aws_account" = "assertion.aud"
+  }
+
+  oidc {
+    issuer_uri = "https://oidc.eks.${var.aws_region}.amazonaws.com/id/${var.aws_oidc_provider_id}"
+  }
+}
+
+# Allow Cloud Run Service Account to impersonate AWS IAM Role
+resource "google_service_account_iam_binding" "cloudrun_aws_impersonation" {
+  service_account_id = google_service_account.cloudrun.name
+  role               = "roles/iam.workloadIdentityUser"
+
+  members = [
+    "serviceAccount:${google_service_account.cloudrun.email}",
+  ]
 }
 
 # IAM bindings for Cloud Run Service Account

@@ -15,17 +15,20 @@ variable "environment" {
   default     = "staging"
 }
 
-# AWS credentials for accessing DynamoDB
-variable "aws_access_key_id" {
-  description = "AWS Access Key ID for DynamoDB access"
+# AWS configuration for Workload Identity
+variable "aws_account_id" {
+  description = "AWS Account ID"
   type        = string
-  sensitive   = true
 }
 
-variable "aws_secret_access_key" {
-  description = "AWS Secret Access Key for DynamoDB access"
+variable "aws_workload_identity_role_arn" {
+  description = "ARN of AWS IAM role for Workload Identity"
   type        = string
-  sensitive   = true
+}
+
+variable "aws_oidc_provider_id" {
+  description = "AWS OIDC Provider ID for Workload Identity"
+  type        = string
 }
 
 variable "aws_region" {
