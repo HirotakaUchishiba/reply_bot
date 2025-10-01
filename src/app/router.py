@@ -193,6 +193,12 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                         "external_id": f"ai-reply-{context_id}",
                         "stage": cfg.stage,
                     }
+                    # Include content to avoid cross-cloud data fetch
+                    try:
+                        payload["redacted_body"] = redacted_body  # type: ignore[name-defined]
+                        payload["pii_map"] = pii_map  # type: ignore[name-defined]
+                    except Exception:
+                        pass
                     headers = {
                         "Content-Type": "application/json",
                     }
