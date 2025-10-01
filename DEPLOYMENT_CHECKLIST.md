@@ -34,13 +34,49 @@ cd infra/terraform
 
 ## 🔧 デプロイメント手順
 
-### **ステップ1: Terraformの初期化**
+### **ステップ1: Cloud Runデプロイ（非同期生成対応）**
+```bash
+# Cloud Runコンポーネントをデプロイ
+cd infra/terraform/gcp
+terraform init
+terraform workspace select staging
+terraform apply -var-file=staging.tfvars
+
+# デプロイ後のURLを取得
+CLOUDRUN_URL=$(terraform output -raw cloud_run_service_url)
+echo "Cloud Run URL: $CLOUDRUN_URL"
+```
+
+### **ステップ2: AWS Lambda設定の更新**
+```bash
+# AWS側のTerraformを更新（async_generation_endpointを設定）
+cd ../../
+terraform init
+terraform workspace select staging
+
+# staging.tfvarsにCloud Run URLを設定
+# async_generation_endpoint = "https://your-cloudrun-url/async/generate"
+# async_generation_auth_header = "Bearer your-auth-token"
+
+terraform apply -var-file=staging.tfvars
+```
+
+### **ステップ3: Slack Request URL更新**
+```bash
+# SlackアプリのRequest URLをCloud Runに更新
+./scripts/update-slack-request-url.sh \
+  -e staging \
+  -u "$CLOUDRUN_URL" \
+  -t "your-slack-bot-token"
+```
+
+### **ステップ4: 従来のTerraform初期化（参考）**
 ```bash
 cd infra/terraform
 terraform init
 ```
 
-### **ステップ2: ワークスペースの設定**
+### **ステップ5: ワークスペースの設定**
 ```bash
 # ステージング環境
 terraform workspace select staging
@@ -49,7 +85,7 @@ terraform workspace select staging
 terraform workspace select prod
 ```
 
-### **ステップ3: 設定ファイルの確認**
+### **ステップ6: 設定ファイルの確認**
 ```bash
 # ステージング環境の設定を確認
 cat staging.tfvars
@@ -58,23 +94,23 @@ cat staging.tfvars
 cat prod.tfvars
 ```
 
-### **ステップ4: インフラの計画確認**
+### **ステップ8: インフラの計画確認**
 ```bash
 terraform plan -var-file=staging.tfvars
 ```
 
-### **ステップ5: インフラのデプロイ**
+### **ステップ9: インフラのデプロイ**
 ```bash
 terraform apply -var-file=staging.tfvars
 ```
 
-### **ステップ6: Secrets Managerの設定**
+### **ステップ10: Secrets Managerの設定**
 ```bash
 # スクリプトを使用してSecrets Managerに認証情報を設定
 ./scripts/setup-secrets.sh staging --interactive
 ```
 
-### **ステップ7: Slackアプリの設定**
+### **ステップ11: Slackアプリの設定**
 1. [Slack API管理画面](https://api.slack.com/apps)にアクセス
 2. 新しいアプリを作成
 3. Bot Token Scopesを設定：
@@ -82,11 +118,11 @@ terraform apply -var-file=staging.tfvars
    - `chat:write.public`
    - `commands`
 4. Interactivity & Shortcutsを有効化
-5. Request URLを設定：`https://[API_GATEWAY_URL]/slack/events`
+5. Request URLを設定：`https://[CLOUDRUN_URL]/slack/events`（Cloud Runデプロイ後）
 6. Event Subscriptionsを有効化
 7. アプリをワークスペースにインストール
 
-### **ステップ8: デプロイメントの検証**
+### **ステップ12: デプロイメントの検証**
 ```bash
 # 検証スクリプトを実行
 ./scripts/validate-deployment.sh staging

@@ -19,3 +19,8 @@ slack_channel_id     = "C01234ABCDE"
 alarm_lambda_error_threshold = 1
 alarm_apigw_5xx_threshold    = 1
 
+# Cloud Run async generation configuration
+# 注意: Cloud Runデプロイ後に実際のURLに更新してください
+async_generation_endpoint = "https://your-cloudrun-service-url/async/generate"
+async_generation_auth_header = "Bearer your-auth-token"
+
