@@ -23,9 +23,11 @@ class SlackClient:
         self._client.chat_postMessage(**kwargs)
 
 
-def build_ai_reply_modal(context_id: str, initial_text: str) -> Dict[str, Any]:
+def build_ai_reply_modal(
+    context_id: str, initial_text: str, external_id: str | None = None
+) -> Dict[str, Any]:
     # Block Kit modal per design docs with fixed IDs
-    return {
+    view: Dict[str, Any] = {
         "type": "modal",
         "callback_id": "ai_reply_modal_submission",
         "private_metadata": json.dumps({"context_id": context_id}),
@@ -53,6 +55,10 @@ def build_ai_reply_modal(context_id: str, initial_text: str) -> Dict[str, Any]:
             },
         ],
     }
+    # Allow async updates: attach external_id so we can update this view later
+    if external_id:
+        view["external_id"] = external_id
+    return view
 
 
 def build_new_email_notification(

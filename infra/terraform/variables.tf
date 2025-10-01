@@ -44,3 +44,15 @@ variable "slack_channel_id" {
 }
 
 
+variable "async_generation_endpoint" {
+  type        = string
+  description = "External endpoint to trigger async AI generation (e.g., Cloud Run service)"
+  default     = ""
+}
+
+variable "async_generation_auth_header" {
+  type        = string
+  description = "Authorization header value for async generation endpoint"
+  default     = ""
+}
+
