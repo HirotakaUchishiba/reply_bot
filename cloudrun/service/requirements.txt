@@ -1,5 +1,4 @@
-flask==3.0.3
-slack-sdk==3.36.0
-google-cloud-run==0.8.7
-google-auth==2.34.0
-
+Flask==3.0.0
+google-cloud-run==0.10.0
+google-cloud-secret-manager==2.18.0
+requests==2.31.0
