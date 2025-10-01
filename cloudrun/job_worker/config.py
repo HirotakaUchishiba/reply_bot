@@ -17,8 +17,13 @@ class JobWorkerConfig:
     slack_bot_token: str
     ddb_table_name: str
     
-    # Optional environment variables
+    # AWS Workload Identity configuration
     aws_region: str = "ap-northeast-1"
+    aws_role_arn: str = ""
+    gcp_service_account_email: str = ""
+    workload_identity_provider: str = ""
+    
+    # Optional environment variables
     openai_timeout: int = 30
     log_level: str = "INFO"
     
@@ -51,6 +56,9 @@ class JobWorkerConfig:
             slack_bot_token=slack_bot_token,
             ddb_table_name=ddb_table_name,
             aws_region=os.getenv("AWS_REGION", "ap-northeast-1"),
+            aws_role_arn=os.getenv("AWS_ROLE_ARN", ""),
+            gcp_service_account_email=os.getenv("GCP_SERVICE_ACCOUNT_EMAIL", ""),
+            workload_identity_provider=os.getenv("WORKLOAD_IDENTITY_PROVIDER", ""),
             openai_timeout=int(os.getenv("OPENAI_TIMEOUT", "30")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
         )
