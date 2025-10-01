@@ -83,6 +83,23 @@ configure_docker() {
     gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 }
 
+# Migrate secrets from AWS to GCP
+migrate_secrets() {
+    log_info "Migrating secrets from AWS to GCP..."
+    
+    # Check if migration script exists
+    if [[ -f "cloudrun/migrate-secrets.sh" ]]; then
+        # Run migration script
+        PROJECT_ID="${PROJECT_ID}" \
+        ENVIRONMENT="${ENVIRONMENT}" \
+        AWS_REGION="${AWS_REGION:-ap-northeast-1}" \
+        ./cloudrun/migrate-secrets.sh
+    else
+        log_warn "Secrets migration script not found. Please run migration manually."
+        log_warn "See CLOUD_RUN_DEPLOYMENT.md for manual migration steps."
+    fi
+}
+
 # Build and push Docker images
 build_and_push_images() {
     local image_tag="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}"
@@ -174,6 +191,7 @@ main() {
     validate_env
     enable_apis
     configure_docker
+    migrate_secrets
     build_and_push_images
     deploy_infrastructure
     update_secrets

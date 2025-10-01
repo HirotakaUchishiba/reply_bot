@@ -41,6 +41,37 @@ validate_env() {
     fi
 }
 
+# Check if secrets exist in GCP Secret Manager
+check_secrets() {
+    log_info "Checking GCP Secret Manager secrets..."
+    
+    local secrets=(
+        "slack-signing-secret-${ENVIRONMENT}"
+        "slack-bot-token-${ENVIRONMENT}"
+        "openai-api-key-${ENVIRONMENT}"
+        "gmail-oauth-${ENVIRONMENT}"
+    )
+    
+    local all_secrets_exist=true
+    
+    for secret in "${secrets[@]}"; do
+        if gcloud secrets describe "${secret}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            log_info "✓ Secret '${secret}' exists"
+        else
+            log_error "✗ Secret '${secret}' not found"
+            all_secrets_exist=false
+        fi
+    done
+    
+    if [[ "$all_secrets_exist" == true ]]; then
+        log_info "All secrets are available"
+        return 0
+    else
+        log_error "Some secrets are missing"
+        return 1
+    fi
+}
+
 # Check if Cloud Run service exists and is healthy
 check_cloud_run_service() {
     log_info "Checking Cloud Run service..."

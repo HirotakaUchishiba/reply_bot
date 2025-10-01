@@ -40,6 +40,11 @@ resource "google_cloud_run_v2_service" "slack_events" {
       }
       
       env {
+        name  = "SLACK_BOT_TOKEN_SECRET_NAME"
+        value = google_secret_manager_secret.slack_bot_token.secret_id
+      }
+      
+      env {
         name  = "STAGE"
         value = var.environment
       }
