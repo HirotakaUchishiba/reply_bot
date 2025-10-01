@@ -49,6 +49,11 @@ resource "google_cloud_run_v2_service" "slack_events" {
         value = "8080"
       }
       
+      env {
+        name  = "AUTH_TOKEN"
+        value = var.auth_token
+      }
+      
       resources {
         limits = {
           cpu    = "1"
@@ -104,7 +109,7 @@ resource "google_cloud_run_v2_job" "reply_generator" {
       service_account = google_service_account.cloudrun.email
       
       containers {
-        image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.reply_bot.name}/reply-generator:latest"
+        image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.reply_bot.name}/job-worker:latest"
         
         env {
           name  = "GCP_PROJECT_ID"
