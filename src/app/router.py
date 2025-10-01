@@ -152,7 +152,7 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     pii_map = json.loads(str(pii_map_raw))
                 except Exception:
                     pii_map = {}
-                if redacted_body and (time.time() - started) < 2.0:
+                if redacted_body and (time.time() - started) < 15.0:
                     try:
                         draft = generate_reply_draft(redacted_body)
                     except Exception as exc:
