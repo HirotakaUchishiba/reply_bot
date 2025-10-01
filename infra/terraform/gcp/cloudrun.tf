@@ -44,11 +44,38 @@ resource "google_cloud_run_v2_service" "slack_events" {
         value = var.environment
       }
       
+      env {
+        name  = "PORT"
+        value = "8080"
+      }
+      
       resources {
         limits = {
           cpu    = "1"
           memory = "512Mi"
         }
+      }
+      
+      startup_probe {
+        http_get {
+          path = "/health"
+          port = 8080
+        }
+        initial_delay_seconds = 10
+        timeout_seconds      = 5
+        period_seconds       = 10
+        failure_threshold    = 3
+      }
+      
+      liveness_probe {
+        http_get {
+          path = "/health"
+          port = 8080
+        }
+        initial_delay_seconds = 30
+        timeout_seconds      = 5
+        period_seconds       = 30
+        failure_threshold    = 3
       }
     }
     
@@ -56,6 +83,8 @@ resource "google_cloud_run_v2_service" "slack_events" {
       min_instance_count = 0
       max_instance_count = 10
     }
+    
+    timeout = "60s"
   }
 
   traffic {
@@ -115,6 +144,16 @@ resource "google_cloud_run_v2_job" "reply_generator" {
         env {
           name  = "DDB_TABLE_NAME"
           value = var.ddb_table_name
+        }
+        
+        env {
+          name  = "OPENAI_TIMEOUT"
+          value = "30"
+        }
+        
+        env {
+          name  = "LOG_LEVEL"
+          value = "INFO"
         }
         
         resources {
