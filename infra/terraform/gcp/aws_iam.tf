@@ -13,12 +13,12 @@ resource "aws_iam_role" "cloudrun_workload_identity" {
         Action = "sts:AssumeRoleWithWebIdentity"
         Effect = "Allow"
         Principal = {
-          Federated = "arn:aws:iam::${var.aws_account_id}:oidc-provider/${var.gcp_workload_identity_provider}"
+          Federated = "arn:aws:iam::${var.aws_account_id}:oidc-provider/${var.aws_oidc_provider_id}"
         }
         Condition = {
           StringEquals = {
-            "${var.gcp_workload_identity_provider}:sub" = "system:serviceaccount:${var.gcp_project_id}:${google_service_account.cloudrun.email}"
-            "${var.gcp_workload_identity_provider}:aud" = "sts.amazonaws.com"
+            "${var.aws_oidc_provider_id}:sub" = "system:serviceaccount:${var.gcp_project_id}:${google_service_account.cloudrun.email}"
+            "${var.aws_oidc_provider_id}:aud" = "sts.amazonaws.com"
           }
         }
       }
