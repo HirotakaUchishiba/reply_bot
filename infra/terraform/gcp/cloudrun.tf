@@ -54,7 +54,6 @@ resource "google_cloud_run_v2_service" "slack_events" {
           cpu    = "1"
           memory = "512Mi"
         }
-        cpu_idle = true
       }
       
       startup_probe {
@@ -162,7 +161,6 @@ resource "google_cloud_run_v2_job" "reply_generator" {
             cpu    = "2"
             memory = "1Gi"
           }
-          cpu_idle = false
         }
       }
       
