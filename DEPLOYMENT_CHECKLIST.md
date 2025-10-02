@@ -32,6 +32,29 @@ cd infra/terraform
 - [ ] 送信元メールアドレス
 - [ ] SlackチャンネルID
 
+## セキュリティ: pre-commitによる秘密情報スキャンの有効化
+
+ローカルコミット時に誤コミットを防止するため、`gitleaks`と`trufflehog`をpre-commitに設定しています。
+
+手順:
+
+1. pre-commitをインストール
+   ```bash
+   pip install pre-commit
+   ```
+2. フックを有効化
+   ```bash
+   pre-commit install
+   ```
+3. 初回フルスキャン（推奨）
+   ```bash
+   pre-commit run --all-files
+   ```
+
+メモ:
+- ステージ済み変更に対してはコミット時に自動検査が走ります。
+- 誤検知がある場合は、原因を確認し、必要に応じて`.gitleaks.toml`等のルールを追加してください（本リポにはデフォルト設定で十分な想定です）。
+
 ## 🔧 デプロイメント手順
 
 ### **ステップ1: Cloud Runデプロイ（非同期生成対応）**
