@@ -1,0 +1,28 @@
+# See https://pre-commit.com for usage
+# Install: pip install pre-commit && pre-commit install
+# Run on all files: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Gitleaks secret scanning
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: gitleaks (staged)
+        args: ["protect", "--verbose", "--staged"]
+
+  # TruffleHog secret scanning
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.78.0
+    hooks:
+      - id: trufflehog
+        name: trufflehog (staged)
+        args: ["filesystem", ".", "--only-verified", "--fail", "--no-update", "--since-commit", "HEAD"]
+        stages: [commit]
