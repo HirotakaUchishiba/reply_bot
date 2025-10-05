@@ -139,11 +139,12 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     context_id = json.loads(val).get("context_id", "")
                 except Exception:
                     context_id = ""
-            # Prepare initial text. If async endpoint is configured, we won't
-            # block beyond a small budget.
+            # Prepare initial text with improved error handling and timeout
             bot_token = creds.get("bot_token", "")
             initial_text = "ここにAIが生成した返信文案が表示されます。"
             started = time.time()
+
+            # Enhanced error handling for context retrieval and AI generation
             try:
                 item = get_context_item(context_id) if context_id else None
                 redacted_body = (item or {}).get("body_redacted") or ""
@@ -151,43 +152,87 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 pii_map: Dict[str, str] = {}
                 try:
                     pii_map = json.loads(str(pii_map_raw))
-                except Exception:
-                    pii_map = {}
-                # Do quick inline generation only when async endpoint is not
-                # set and within a tight time budget.
-                if (
-                    redacted_body
-                    and not cfg.async_generation_endpoint
-                    and (time.time() - started) < 3.0
-                ):
-                    try:
-                        draft = generate_reply_draft(redacted_body)
-                    except Exception as exc:
-                        log_error("openai generation failed", error=str(exc))
-                        draft = ""
-                    if draft:
-                        try:
-                            initial_text = reidentify(draft, pii_map)
-                        except Exception:
-                            initial_text = draft
-            except Exception as exc:
-                log_error("prefill draft failed", error=str(exc))
-
-            # Open modal
-            if bot_token and trigger_id:
-                try:
-                    slack = SlackClient(bot_token)
-                    external_id = (
-                        f"ai-reply-{context_id}" if context_id else None
-                    )
-                    view = build_ai_reply_modal(
-                        context_id=context_id or "",
-                        initial_text=initial_text,
-                        external_id=external_id,
-                    )
-                    slack.open_modal(trigger_id=trigger_id, view=view)
                 except Exception as exc:
-                    log_error("failed to open slack modal", error=str(exc))
+                    log_error("failed to parse pii_map", context_id=context_id,
+                              error=str(exc))
+                    pii_map = {}
+
+                # Improved timeout protection: prioritize modal display
+                time_remaining = (cfg.slack_modal_timeout_seconds -
+                                  (time.time() - started))
+
+                # Only attempt AI generation if we have enough time
+                if (redacted_body and not cfg.async_generation_endpoint and
+                        time_remaining > cfg.ai_generation_timeout_seconds):
+                    try:
+                        log_info("attempting inline AI generation",
+                                 context_id=context_id,
+                                 time_remaining=time_remaining)
+                        draft = generate_reply_draft(redacted_body)
+                        if draft:
+                            try:
+                                initial_text = reidentify(draft, pii_map)
+                                log_info("inline AI generation successful",
+                                         context_id=context_id)
+                            except Exception as exc:
+                                log_error("failed to reidentify PII",
+                                          context_id=context_id,
+                                          error=str(exc))
+                                initial_text = draft
+                    except Exception as exc:
+                        log_error("inline AI generation failed",
+                                  context_id=context_id, error=str(exc))
+                        # Continue with default text - don't fail operation
+                elif cfg.async_generation_endpoint:
+                    log_info("async endpoint configured, skipping inline generation",
+                             context_id=context_id)
+                else:
+                    log_info("insufficient time for AI generation, using default text",
+                             context_id=context_id,
+                             time_remaining=time_remaining)
+
+            except Exception as exc:
+                log_error("context retrieval failed", context_id=context_id,
+                          error=str(exc))
+                # Continue with default text - don't fail the entire operation
+
+            # Enhanced modal display with better error handling
+            if not bot_token:
+                log_error("slack bot token not available",
+                          context_id=context_id)
+                return _response(500, {"error": "slack configuration error"})
+
+            if not trigger_id:
+                log_error("slack trigger_id not available",
+                          context_id=context_id)
+                return _response(400, {"error": "invalid slack request"})
+
+            try:
+                slack = SlackClient(bot_token)
+                external_id = f"ai-reply-{context_id}" if context_id else None
+                view = build_ai_reply_modal(
+                    context_id=context_id or "",
+                    initial_text=initial_text,
+                    external_id=external_id,
+                )
+
+                # Check if we still have time to open modal
+                time_elapsed = time.time() - started
+                if time_elapsed >= cfg.slack_modal_timeout_seconds:
+                    log_error("modal display timeout - too late to open modal",
+                              context_id=context_id, time_elapsed=time_elapsed,
+                              timeout_threshold=cfg.slack_modal_timeout_seconds)
+                    return _response(408, {"error": "request timeout"})
+
+                slack.open_modal(trigger_id=trigger_id, view=view)
+                log_info("slack modal opened successfully",
+                         context_id=context_id, time_elapsed=time_elapsed)
+
+            except Exception as exc:
+                log_error("failed to open slack modal", context_id=context_id,
+                          error=str(exc),
+                          time_elapsed=time.time() - started)
+                return _response(500, {"error": "modal display failed"})
             # Trigger async generation if configured
             try:
                 if cfg.async_generation_endpoint and context_id:
