@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from typing import Any, Dict
 import json
+import time
 
 from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
+
+try:
+    from common.logging import log_error, log_info
+except ImportError:
+    from .common.logging import log_error, log_info
 
 
 class SlackClient:
@@ -11,8 +18,33 @@ class SlackClient:
         self._client = WebClient(token=bot_token)
 
     def open_modal(self, trigger_id: str, view: Dict[str, Any]) -> None:
-        # Slack requires views.open within 3 seconds of interaction
-        self._client.views_open(trigger_id=trigger_id, view=view)
+        """
+        Open Slack modal with enhanced error handling and timeout protection.
+        Slack requires views.open within 3 seconds of interaction.
+        """
+        start_time = time.time()
+        try:
+            log_info("attempting to open slack modal", trigger_id=trigger_id)
+            self._client.views_open(trigger_id=trigger_id, view=view)
+            elapsed = time.time() - start_time
+            log_info("slack modal opened successfully", trigger_id=trigger_id,
+                     elapsed=elapsed)
+        except SlackApiError as e:
+            elapsed = time.time() - start_time
+            error_code = getattr(e, 'response', {}).get('error', 'unknown')
+            log_error("slack API error when opening modal",
+                      trigger_id=trigger_id,
+                      error=str(e),
+                      error_code=error_code,
+                      elapsed=elapsed)
+            raise
+        except Exception as e:
+            elapsed = time.time() - start_time
+            log_error("unexpected error when opening modal",
+                      trigger_id=trigger_id,
+                      error=str(e),
+                      elapsed=elapsed)
+            raise
 
     def post_message(
         self, channel: str, text: str, blocks: Dict[str, Any] | None = None

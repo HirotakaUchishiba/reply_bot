@@ -17,6 +17,9 @@ class AppConfig:
     # Async generation (Cloud Run, etc.)
     async_generation_endpoint: str
     async_generation_auth_header: str
+    # Timeout and error handling configuration
+    slack_modal_timeout_seconds: float
+    ai_generation_timeout_seconds: float
 
 
 def load_config() -> AppConfig:
@@ -34,5 +37,12 @@ def load_config() -> AppConfig:
         async_generation_endpoint=os.getenv("ASYNC_GENERATION_ENDPOINT", ""),
         async_generation_auth_header=os.getenv(
             "ASYNC_GENERATION_AUTH_HEADER", ""
+        ),
+        # Timeout configuration with sensible defaults
+        slack_modal_timeout_seconds=float(
+            os.getenv("SLACK_MODAL_TIMEOUT_SECONDS", "2.8")
+        ),
+        ai_generation_timeout_seconds=float(
+            os.getenv("AI_GENERATION_TIMEOUT_SECONDS", "1.0")
         ),
     )
