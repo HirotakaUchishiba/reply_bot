@@ -7,6 +7,10 @@ resource "google_cloud_run_v2_service" "slack_events" {
   template {
     service_account = google_service_account.cloudrun.email
     
+    annotations = {
+      "run.googleapis.com/ingress" = "all"
+    }
+    
     containers {
       image = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.reply_bot.name}/slack-events:latest"
       
