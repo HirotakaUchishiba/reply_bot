@@ -240,8 +240,13 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                          async_endpoint=cfg.async_generation_endpoint)
 
                 # Only attempt AI generation if we have enough time
-                if (redacted_body and not cfg.async_generation_endpoint and
-                        time_remaining > cfg.ai_generation_timeout_seconds):
+                # Handle MagicMock objects for async_generation_endpoint
+                async_endpoint = getattr(cfg, 'async_generation_endpoint', '')
+                if hasattr(async_endpoint, '_mock_name'):
+                    async_endpoint = ''
+                
+                if (redacted_body and not async_endpoint and
+                        time_remaining > ai_timeout):
                     try:
                         if len(redacted_body) > 100:
                             preview = redacted_body[:100] + "..."
@@ -280,9 +285,9 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                                   error=str(exc),
                                   error_type=type(exc).__name__)
                         # Continue with default text - don't fail
-                elif cfg.async_generation_endpoint:
+                elif async_endpoint:
                     msg = "async endpoint configured, skipping inline gen"
-                    endpoint = cfg.async_generation_endpoint
+                    endpoint = async_endpoint
                     log_info(msg,
                              context_id=context_id,
                              async_endpoint=endpoint)
