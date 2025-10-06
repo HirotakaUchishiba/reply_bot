@@ -31,12 +31,16 @@ SLACK_BOT_TOKEN_SECRET_NAME = os.getenv(
 def get_secret(secret_name: str) -> str:
     """Get secret from Google Secret Manager"""
     try:
+        logger.info(f"Attempting to get secret: {secret_name}")
         client = secretmanager.SecretManagerServiceClient()
         name = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
+        logger.info(f"Secret name: {name}")
         response = client.access_secret_version(request={"name": name})
-        return response.payload.data.decode("UTF-8")
+        secret_value = response.payload.data.decode("UTF-8")
+        logger.info(f"Successfully retrieved secret: {secret_name}, length: {len(secret_value)}")
+        return secret_value
     except Exception as e:
-        logger.error(f"Failed to get secret {secret_name}: {e}")
+        logger.error(f"Failed to get secret {secret_name}: {e}", exc_info=True)
         raise
 
 
@@ -140,10 +144,13 @@ def trigger_cloud_run_job(
 ) -> bool:
     """Trigger Cloud Run Job for async processing"""
     try:
+        logger.info(f"Starting Cloud Run Job trigger for context_id: {context_id}")
         client = run_v2.JobsClient()
         job_name = (
             f"projects/{PROJECT_ID}/locations/{REGION}/jobs/{JOB_NAME}"
         )
+        logger.info(f"Job name: {job_name}")
+        logger.info(f"Project ID: {PROJECT_ID}, Region: {REGION}, Job Name: {JOB_NAME}")
 
         # Prepare job execution request
         request = run_v2.RunJobRequest(
@@ -164,14 +171,17 @@ def trigger_cloud_run_job(
                 ]
             )
         )
+        
+        logger.info(f"Created RunJobRequest with env vars: CONTEXT_ID={context_id}, EXTERNAL_ID={external_id}, STAGE={stage}")
 
         # Execute job
+        logger.info("Calling client.run_job()")
         client.run_job(request=request)
-        logger.info(f"Triggered Cloud Run Job for context_id: {context_id}")
+        logger.info(f"Successfully triggered Cloud Run Job for context_id: {context_id}")
         return True
 
     except Exception as e:
-        logger.error(f"Failed to trigger Cloud Run Job: {e}")
+        logger.error(f"Failed to trigger Cloud Run Job: {e}", exc_info=True)
         return False
 
 
@@ -185,28 +195,38 @@ def health_check():
 def async_generate():
     """Handle async generation requests from Lambda"""
     try:
+        logger.info("Received async generation request")
         # Get request data
         data = request.get_json()
+        logger.info(f"Request data: {data}")
+        
         if not data:
+            logger.error("No JSON data provided")
             return jsonify({"error": "No JSON data provided"}), 400
 
         context_id = data.get("context_id")
         external_id = data.get("external_id")
         stage = data.get("stage")
+        
+        logger.info(f"Extracted parameters: context_id={context_id}, external_id={external_id}, stage={stage}")
 
         if not all([context_id, external_id, stage]):
+            logger.error(f"Missing required fields: context_id={context_id}, external_id={external_id}, stage={stage}")
             return jsonify({"error": "Missing required fields"}), 400
 
         # Trigger Cloud Run Job
+        logger.info(f"Triggering Cloud Run Job for context_id: {context_id}")
         success = trigger_cloud_run_job(context_id, external_id, stage)
 
         if success:
+            logger.info(f"Successfully triggered job for context_id: {context_id}")
             return jsonify({"status": "job_triggered"}), 200
         else:
+            logger.error(f"Failed to trigger job for context_id: {context_id}")
             return jsonify({"error": "Failed to trigger job"}), 500
 
     except Exception as e:
-        logger.error(f"Error in async_generate: {e}")
+        logger.error(f"Error in async_generate: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
 
