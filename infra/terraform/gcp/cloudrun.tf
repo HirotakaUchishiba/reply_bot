@@ -50,11 +50,6 @@ resource "google_cloud_run_v2_service" "slack_events" {
       }
       
       env {
-        name  = "PORT"
-        value = "8080"
-      }
-      
-      env {
         name  = "AUTH_TOKEN"
         value = var.auth_token
       }

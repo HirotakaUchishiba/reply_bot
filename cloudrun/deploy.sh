@@ -88,12 +88,12 @@ migrate_secrets() {
     log_info "Migrating secrets from AWS to GCP..."
     
     # Check if migration script exists
-    if [[ -f "cloudrun/migrate-secrets.sh" ]]; then
+    if [[ -f "migrate-secrets.sh" ]]; then
         # Run migration script
         PROJECT_ID="${PROJECT_ID}" \
         ENVIRONMENT="${ENVIRONMENT}" \
         AWS_REGION="${AWS_REGION:-ap-northeast-1}" \
-        ./cloudrun/migrate-secrets.sh
+        ./migrate-secrets.sh
     else
         log_warn "Secrets migration script not found. Please run migration manually."
         log_warn "See CLOUD_RUN_DEPLOYMENT.md for manual migration steps."
@@ -106,23 +106,23 @@ build_and_push_images() {
     
     # Build service image
     log_info "Building service image..."
-    cd cloudrun/service
+    cd service
     docker build -t "${image_tag}/slack-events:latest" .
     docker push "${image_tag}/slack-events:latest"
-    cd ../..
+    cd ..
     
     # Build job image
     log_info "Building job image..."
-    cd cloudrun/job_worker
+    cd job_worker
     docker build -t "${image_tag}/job-worker:latest" .
     docker push "${image_tag}/job-worker:latest"
-    cd ../..
+    cd ..
 }
 
 # Deploy using Terraform
 deploy_infrastructure() {
     log_info "Deploying infrastructure with Terraform..."
-    cd infra/terraform/gcp
+    cd ../infra/terraform/gcp
     
     # Check if tfvars file exists
     if [[ ! -f "${ENVIRONMENT}.tfvars" ]]; then
@@ -151,7 +151,7 @@ deploy_infrastructure() {
     log_info "Applying Terraform deployment..."
     terraform apply tfplan
     
-    cd ../../..
+    cd ../../cloudrun
 }
 
 # Update secrets
