@@ -119,13 +119,65 @@ def _get_dynamodb_context(
     if not context_id:
         return {}
     try:
-        # For now, return empty dict to test without DynamoDB
-        # TODO: Implement proper Workload Identity for AWS access
         logger.info(f"Attempting to get item from DynamoDB table: {config.ddb_table_name} for context_id: {context_id}")
-        logger.warning("DynamoDB access temporarily disabled - returning empty context")
-        return {}
+        
+        # Use Workload Identity for AWS access
+        import boto3
+        import os
+        from botocore.config import Config
+        
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id_secret_name = os.getenv("AWS_ACCESS_KEY_ID_SECRET_NAME")
+        aws_secret_access_key_secret_name = os.getenv("AWS_SECRET_ACCESS_KEY_SECRET_NAME")
+        
+        if not all([aws_access_key_id_secret_name, aws_secret_access_key_secret_name]):
+            logger.error("Missing AWS credentials configuration")
+            raise ValueError("Missing AWS credentials configuration")
+        
+        # Get AWS credentials from Secret Manager
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+        
+        # Get AWS Access Key ID
+        aws_access_key_id_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_access_key_id_secret_name}/versions/latest"
+        aws_access_key_id_response = client.access_secret_version(request={"name": aws_access_key_id_path})
+        aws_access_key_id = aws_access_key_id_response.payload.data.decode("UTF-8").strip()
+        
+        # Get AWS Secret Access Key
+        aws_secret_access_key_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_secret_access_key_secret_name}/versions/latest"
+        aws_secret_access_key_response = client.access_secret_version(request={"name": aws_secret_access_key_path})
+        aws_secret_access_key = aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
+        
+        logger.info(f"Retrieved AWS credentials from Secret Manager - Access Key ID length: {len(aws_access_key_id)}, Secret Access Key length: {len(aws_secret_access_key)}")
+        
+        # Configure AWS session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
+        )
+        
+        # Create DynamoDB resource
+        dynamodb = session.resource('dynamodb', region_name=config.aws_region)
+        table = dynamodb.Table(config.ddb_table_name)
+        resp = table.get_item(Key={"context_id": context_id})
+        item = resp.get("Item") or {}
+        logger.info(f"Retrieved item from DynamoDB: {bool(item)}")
+        
+        if item:
+            # Log the actual content retrieved from DynamoDB
+            body_redacted = item.get("body_redacted", "")
+            logger.info(f"DynamoDB content - body_redacted length: {len(body_redacted)}")
+            logger.info(f"DynamoDB content - body_redacted: {body_redacted}")
+            
+            pii_map = item.get("pii_map", "{}")
+            logger.info(f"DynamoDB content - pii_map: {pii_map}")
+        
+        return item
+        
     except Exception as e:
         logger.error(f"Failed to get DynamoDB context: {e}")
+        # Temporarily return empty dict to allow fallback to test message
+        logger.warning("Returning empty context due to DynamoDB access failure")
         return {}
 
 
@@ -225,10 +277,10 @@ def main() -> None:
         except Exception:
             pii_map = {}
         
-        # If still no body, use a test message
+        # If still no body, use a test message temporarily
         if not redacted_body:
             redacted_body = "お客様から以下のようなお問い合わせをいただきました：\n\n商品の配送について質問があります。いつ頃届く予定でしょうか？\n\nよろしくお願いいたします。"
-            logger.info("Using test message for OpenAI generation")
+            logger.info("Using test message for OpenAI generation (DynamoDB access failed)")
 
     logger.info(f"Calling OpenAI with redacted_body length: {len(redacted_body)}")
     draft = _call_openai(redacted_body, cfg)
