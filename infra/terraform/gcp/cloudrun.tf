@@ -89,7 +89,7 @@ resource "google_cloud_run_v2_service" "slack_events" {
     }
     
     scaling {
-      min_instance_count = 0
+      min_instance_count = 1
       max_instance_count = 10
     }
     
@@ -170,6 +170,16 @@ resource "google_cloud_run_v2_job" "reply_generator" {
           value = "INFO"
         }
         
+        env {
+          name  = "AWS_ACCESS_KEY_ID_SECRET_NAME"
+          value = google_secret_manager_secret.aws_access_key_id.secret_id
+        }
+        
+        env {
+          name  = "AWS_SECRET_ACCESS_KEY_SECRET_NAME"
+          value = google_secret_manager_secret.aws_secret_access_key.secret_id
+        }
+        
         resources {
           limits = {
             cpu    = "2"
@@ -214,7 +224,7 @@ resource "google_iam_workload_identity_pool_provider" "aws_provider" {
   }
 
   oidc {
-    issuer_uri = "https://oidc.eks.${var.aws_region}.amazonaws.com/id/${var.aws_oidc_provider_id}"
+    issuer_uri = "https://accounts.google.com"
   }
 }
 
@@ -278,6 +288,24 @@ resource "google_secret_manager_secret" "openai_api_key" {
   }
 }
 
+resource "google_secret_manager_secret" "aws_access_key_id" {
+  secret_id = "aws-access-key-id-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret" "aws_secret_access_key" {
+  secret_id = "aws-secret-access-key-${var.environment}"
+  project   = var.gcp_project_id
+
+  replication {
+    auto {}
+  }
+}
+
 # IAM for Cloud Run to access secrets
 resource "google_secret_manager_secret_iam_member" "slack_signing_access" {
   secret_id = google_secret_manager_secret.slack_signing.secret_id
@@ -295,6 +323,20 @@ resource "google_secret_manager_secret_iam_member" "slack_bot_token_access" {
 
 resource "google_secret_manager_secret_iam_member" "openai_api_key_access" {
   secret_id = google_secret_manager_secret.openai_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloudrun.email}"
+  project   = var.gcp_project_id
+}
+
+resource "google_secret_manager_secret_iam_member" "aws_access_key_id_access" {
+  secret_id = google_secret_manager_secret.aws_access_key_id.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloudrun.email}"
+  project   = var.gcp_project_id
+}
+
+resource "google_secret_manager_secret_iam_member" "aws_secret_access_key_access" {
+  secret_id = google_secret_manager_secret.aws_secret_access_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloudrun.email}"
   project   = var.gcp_project_id

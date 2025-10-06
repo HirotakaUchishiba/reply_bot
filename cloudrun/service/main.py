@@ -31,13 +31,20 @@ SLACK_BOT_TOKEN_SECRET_NAME = os.getenv(
 def get_secret(secret_name: str) -> str:
     """Get secret from Google Secret Manager"""
     try:
-        logger.info(f"Attempting to get secret: {secret_name}")
+        logger.info(
+            f"Attempting to get secret: {secret_name}"
+        )
         client = secretmanager.SecretManagerServiceClient()
         name = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
-        logger.info(f"Secret name: {name}")
+        logger.info(
+            f"Secret name: {name}"
+        )
         response = client.access_secret_version(request={"name": name})
         secret_value = response.payload.data.decode("UTF-8")
-        logger.info(f"Successfully retrieved secret: {secret_name}, length: {len(secret_value)}")
+        logger.info(
+            f"Successfully retrieved secret: {secret_name}, length: "
+            f"{len(secret_value)}"
+        )
         return secret_value
     except Exception as e:
         logger.error(f"Failed to get secret {secret_name}: {e}", exc_info=True)
@@ -66,32 +73,30 @@ def open_slack_modal(trigger_id: str, context_id: str) -> bool:
 
         client = WebClient(token=bot_token)
 
-        # Create modal view
+        # Create modal view (initially shows loading state; worker will update with input)
         view = {
             "type": "modal",
             "callback_id": "ai_reply_modal_submission",
             "private_metadata": json.dumps({"context_id": context_id}),
             "title": {"type": "plain_text", "text": "AI返信アシスタント"},
-            "submit": {"type": "plain_text", "text": "この内容でメールを送信"},
             "close": {"type": "plain_text", "text": "閉じる"},
             "external_id": f"ai-reply-{context_id}",
             "blocks": [
                 {
                     "type": "header",
-                    "text": {"type": "plain_text", "text": "返信文案の確認・編集"},
+                    "text": {
+                        "type": "plain_text",
+                        "text": "返信文案の生成中",
+                    },
                 },
                 {
-                    "type": "input",
-                    "block_id": "editable_reply_block",
-                    "label": {
-                        "type": "plain_text",
-                        "text": "以下の返信文案を編集し、送信してください。",
-                    },
-                    "element": {
-                        "type": "plain_text_input",
-                        "action_id": "editable_reply_input",
-                        "multiline": True,
-                        "initial_value": "AIが返信文案を生成中です。しばらくお待ちください...",
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            "⏳ AIが返信文案を生成中です。"
+                            "しばらくお待ちください…"
+                        ),
                     },
                 },
             ],

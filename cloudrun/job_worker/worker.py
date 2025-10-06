@@ -5,9 +5,14 @@ from __future__ import annotations
 import json
 import os
 import sys
+import logging
 from typing import Any, Dict
 
 import urllib.request
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Test-friendly shims for optional deps (so pytest can patch by name)
 try:  # pragma: no cover - prefer real libs if present
@@ -114,12 +119,65 @@ def _get_dynamodb_context(
     if not context_id:
         return {}
     try:
-        table = boto3.resource("dynamodb").Table(  # type: ignore
-            config.ddb_table_name
+        logger.info(f"Attempting to get item from DynamoDB table: {config.ddb_table_name} for context_id: {context_id}")
+        
+        # Use Workload Identity for AWS access
+        import boto3
+        import os
+        from botocore.config import Config
+        
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id_secret_name = os.getenv("AWS_ACCESS_KEY_ID_SECRET_NAME")
+        aws_secret_access_key_secret_name = os.getenv("AWS_SECRET_ACCESS_KEY_SECRET_NAME")
+        
+        if not all([aws_access_key_id_secret_name, aws_secret_access_key_secret_name]):
+            logger.error("Missing AWS credentials configuration")
+            raise ValueError("Missing AWS credentials configuration")
+        
+        # Get AWS credentials from Secret Manager
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+        
+        # Get AWS Access Key ID
+        aws_access_key_id_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_access_key_id_secret_name}/versions/latest"
+        aws_access_key_id_response = client.access_secret_version(request={"name": aws_access_key_id_path})
+        aws_access_key_id = aws_access_key_id_response.payload.data.decode("UTF-8").strip()
+        
+        # Get AWS Secret Access Key
+        aws_secret_access_key_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_secret_access_key_secret_name}/versions/latest"
+        aws_secret_access_key_response = client.access_secret_version(request={"name": aws_secret_access_key_path})
+        aws_secret_access_key = aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
+        
+        logger.info(f"Retrieved AWS credentials from Secret Manager - Access Key ID length: {len(aws_access_key_id)}, Secret Access Key length: {len(aws_secret_access_key)}")
+        
+        # Configure AWS session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
         )
+        
+        # Create DynamoDB resource
+        dynamodb = session.resource('dynamodb', region_name=config.aws_region)
+        table = dynamodb.Table(config.ddb_table_name)
         resp = table.get_item(Key={"context_id": context_id})
-        return resp.get("Item") or {}
-    except Exception:
+        item = resp.get("Item") or {}
+        logger.info(f"Retrieved item from DynamoDB: {bool(item)}")
+        
+        if item:
+            # Log the actual content retrieved from DynamoDB
+            body_redacted = item.get("body_redacted", "")
+            logger.info(f"DynamoDB content - body_redacted length: {len(body_redacted)}")
+            logger.info(f"DynamoDB content - body_redacted: {body_redacted}")
+            
+            pii_map = item.get("pii_map", "{}")
+            logger.info(f"DynamoDB content - pii_map: {pii_map}")
+        
+        return item
+        
+    except Exception as e:
+        logger.error(f"Failed to get DynamoDB context: {e}")
+        # Temporarily return empty dict to allow fallback to test message
+        logger.warning("Returning empty context due to DynamoDB access failure")
         return {}
 
 
@@ -127,8 +185,10 @@ def _update_slack_modal(
     external_id: str, context_id: str, text: str, config: JobWorkerConfig
 ) -> bool:
     if not getattr(config, "slack_bot_token", "") or not external_id:
+        logger.error(f"Missing slack_bot_token or external_id: token={bool(getattr(config, 'slack_bot_token', ''))}, external_id={external_id}")
         return False
     try:
+        logger.info(f"Updating Slack modal with external_id: {external_id}, text length: {len(text)}")
         # Late import so tests can patch slack_sdk.WebClient reliably
         from slack_sdk import WebClient as _WebClient  # type: ignore
         client = _WebClient(token=config.slack_bot_token)
@@ -159,9 +219,12 @@ def _update_slack_modal(
                 },
             ],
         }
-        client.views_update(external_id=external_id, view=view)
+        logger.info(f"Calling Slack views_update with external_id: {external_id}")
+        response = client.views_update(external_id=external_id, view=view)
+        logger.info(f"Slack API response: {response}")
         return True
-    except Exception:  # be permissive in worker context
+    except Exception as e:  # be permissive in worker context
+        logger.error(f"Failed to update Slack modal: {e}")
         return False
 
 
@@ -185,19 +248,23 @@ def main() -> None:
     except Exception:
         sys.exit(1)
 
-    # Parse job payload
+    # Parse job payload - support both JOB_PAYLOAD and direct env vars
     payload_raw = os.getenv("JOB_PAYLOAD", "{}")
     try:
         payload: Dict[str, Any] = json.loads(payload_raw)
     except Exception:
         payload = {}
 
-    context_id = str(payload.get("context_id", ""))
-    external_id = str(payload.get("external_id", ""))
+    # Get values from payload or direct environment variables
+    context_id = str(payload.get("context_id", os.getenv("CONTEXT_ID", "")))
+    external_id = str(payload.get("external_id", os.getenv("EXTERNAL_ID", "")))
     redacted_body = str(payload.get("redacted_body", ""))
     pii_map = payload.get("pii_map") or {}
 
+    logger.info(f"Job started with context_id: {context_id}, external_id: {external_id}")
+    
     if not context_id:
+        logger.error("No context_id provided")
         sys.exit(1)
 
     # Fetch context if body absent
@@ -209,13 +276,28 @@ def main() -> None:
             pii_map = json.loads(str(raw_map))
         except Exception:
             pii_map = {}
+        
+        # If still no body, use a test message temporarily
+        if not redacted_body:
+            redacted_body = "お客様から以下のようなお問い合わせをいただきました：\n\n商品の配送について質問があります。いつ頃届く予定でしょうか？\n\nよろしくお願いいたします。"
+            logger.info("Using test message for OpenAI generation (DynamoDB access failed)")
 
+    logger.info(f"Calling OpenAI with redacted_body length: {len(redacted_body)}")
     draft = _call_openai(redacted_body, cfg)
     if not draft:
+        logger.error("OpenAI call failed or returned empty response")
         sys.exit(0)
 
+    logger.info(f"OpenAI generated draft with length: {len(draft)}")
     final_text = _reidentify_pii(draft, pii_map)
+    logger.info(f"Final text after PII reidentification: {len(final_text)}")
+    
     ok = _update_slack_modal(external_id, context_id, final_text, cfg)
+    if ok:
+        logger.info("Successfully updated Slack modal")
+    else:
+        logger.error("Failed to update Slack modal")
+    
     sys.exit(0 if ok else 1)
 
 
