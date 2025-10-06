@@ -96,7 +96,7 @@ class TestImprovedErrorHandling:
             patch("src.app.router.get_context_item") as mock_get,
             patch("src.app.router.SlackClient") as mock_slack,
             patch("src.app.router.generate_reply_draft") as mock_generate,
-            patch("time.time", return_value=1000.0)  # Mock time to ensure time_remaining < ai_timeout
+            patch("time.time", side_effect=[1000.0, 1000.6])  # Mock time to ensure time_remaining < ai_timeout
         ):
             # Setup mocks with very short timeout
             mock_config.return_value = MagicMock(
@@ -110,6 +110,9 @@ class TestImprovedErrorHandling:
                 slack_modal_timeout_seconds=1.0,  # Very short timeout
                 ai_generation_timeout_seconds=0.5,  # Very short AI timeout
             )
+            # Ensure the timeout values are actual numbers, not MagicMock objects
+            mock_config.return_value.slack_modal_timeout_seconds = 1.0
+            mock_config.return_value.ai_generation_timeout_seconds = 0.5
             mock_verify.return_value = True
             mock_creds.return_value = {
                 "bot_token": "xoxb-test-token",
