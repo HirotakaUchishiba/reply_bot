@@ -20,13 +20,17 @@ oauth_config:
 settings:
   interactivity:
     is_enabled: true
-    # このURLはTerraformで作成されたAPI GatewayのURLに置き換える必要があります
-    # 例: https://abc123def4.execute-api.ap-northeast-1.amazonaws.com/slack/events
-    request_url: https://YOUR_API_GATEWAY_ID.execute-api.ap-northeast-1.amazonaws.com/slack/events
+    # このURLはTerraformで作成されたCloud RunサービスのURLに置き換える必要があります
+    # 取得方法: terraform output slack_request_url
+    # 例: https://reply-bot-slack-events-staging-xxxxx.a.run.app/slack/events
+    request_url: https://YOUR_CLOUD_RUN_URL/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
   event_subscriptions:
+    # このURLはTerraformで作成されたCloud RunサービスのURLに置き換える必要があります
+    # 取得方法: terraform output slack_request_url
+    request_url: https://YOUR_CLOUD_RUN_URL/slack/events
     bot_events:
       - message.channels
       - message.groups

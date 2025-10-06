@@ -25,7 +25,9 @@ class TestAsyncConfig:
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
             async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
-            async_generation_auth_header="Bearer test-token"
+            async_generation_auth_header="Bearer test-token",
+            slack_modal_timeout_seconds=2.8,
+            ai_generation_timeout_seconds=1.0
         )
 
         assert config.async_generation_endpoint == "https://test-cloudrun.example.com/async/generate"
@@ -114,7 +116,9 @@ class TestAsyncConfig:
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
             async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
-            async_generation_auth_header="Bearer test-token"
+            async_generation_auth_header="Bearer test-token",
+            slack_modal_timeout_seconds=2.8,
+            ai_generation_timeout_seconds=1.0
         )
 
         assert config.async_generation_endpoint.startswith("https://")
@@ -141,9 +145,11 @@ class TestAsyncConfig:
                 gmail_oauth_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
                 ses_inbound_bucket_name="test-bucket",
                 ses_inbound_prefix="inbound/",
-                async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
-                async_generation_auth_header=auth_header
-            )
+            async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
+            async_generation_auth_header=auth_header,
+            slack_modal_timeout_seconds=2.8,
+            ai_generation_timeout_seconds=1.0
+        )
 
             assert config.async_generation_auth_header == auth_header
 
@@ -161,7 +167,9 @@ class TestAsyncConfig:
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
             async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
-            async_generation_auth_header="Bearer test-token"
+            async_generation_auth_header="Bearer test-token",
+            slack_modal_timeout_seconds=2.8,
+            ai_generation_timeout_seconds=1.0
         )
 
         # Attempting to modify should raise an exception

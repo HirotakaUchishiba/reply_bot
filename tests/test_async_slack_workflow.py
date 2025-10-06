@@ -196,7 +196,8 @@ class TestAsyncSlackWorkflow:
                 return_value="Hello John Doe, thank you for your message."
             ),
             patch("src.app.router.SlackClient") as mock_slack_client,
-            patch("urllib.request.urlopen") as mock_urlopen
+            patch("urllib.request.urlopen") as mock_urlopen,
+            patch("time.time", return_value=1000.0)  # Mock time to ensure time_remaining > ai_timeout
         ):
             # Mock Slack client
             mock_slack_instance = MagicMock()

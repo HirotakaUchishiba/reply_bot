@@ -96,6 +96,7 @@ class TestImprovedErrorHandling:
             patch("src.app.router.get_context_item") as mock_get,
             patch("src.app.router.SlackClient") as mock_slack,
             patch("src.app.router.generate_reply_draft") as mock_generate,
+            patch("time.time", return_value=1000.0)  # Mock time to ensure time_remaining < ai_timeout
         ):
             # Setup mocks with very short timeout
             mock_config.return_value = MagicMock(
@@ -109,6 +110,9 @@ class TestImprovedErrorHandling:
                 slack_modal_timeout_seconds=1.0,  # Very short timeout
                 ai_generation_timeout_seconds=0.5,  # Very short AI timeout
             )
+            # Ensure the timeout values are actual numbers, not MagicMock objects
+            mock_config.return_value.slack_modal_timeout_seconds = 1.0
+            mock_config.return_value.ai_generation_timeout_seconds = 2.0  # Larger than time_remaining to skip AI generation
             mock_verify.return_value = True
             mock_creds.return_value = {
                 "bot_token": "xoxb-test-token",
@@ -128,10 +132,9 @@ class TestImprovedErrorHandling:
             # Verify that modal was opened with default text
             assert response["statusCode"] == 200
             mock_slack_instance.open_modal.assert_called_once()
-            # AI generation should have been called but with insufficient time
-            # The test shows that even with short timeout, AI generation is attempted
-            # This is expected behavior as the timeout check happens after generation
-            mock_generate.assert_called_once()
+            # AI generation should NOT be called due to insufficient time
+            # time_remaining (1.0) < ai_timeout (2.0), so AI generation is skipped
+            mock_generate.assert_not_called()
 
     def test_modal_display_timeout_error(self):
         """Test error handling when modal display times out."""

@@ -14,3 +14,6 @@ requests==2.31.0
 
 # Security
 cryptography==41.0.7
+
+# AWS SDK
+boto3==1.34.0

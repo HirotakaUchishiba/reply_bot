@@ -5,6 +5,7 @@ Receives Slack events and triggers Cloud Run Jobs for async processing
 import json
 import os
 import logging
+import time
 from flask import Flask, request, jsonify
 import google.cloud.run_v2 as run_v2
 from google.cloud import secretmanager
@@ -60,7 +61,156 @@ def get_slack_bot_token() -> str:
         return ""
 
 
-def open_slack_modal(trigger_id: str, context_id: str) -> bool:
+def get_dynamodb_context(context_id: str) -> dict:
+    """Get context information from DynamoDB"""
+    try:
+        logger.info(
+            f"Attempting to get DynamoDB context for context_id: {context_id}"
+        )
+
+        # Import boto3 for DynamoDB access
+        import boto3
+
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id_secret_name = os.getenv(
+            "AWS_ACCESS_KEY_ID_SECRET_NAME"
+        )
+        aws_secret_access_key_secret_name = os.getenv(
+            "AWS_SECRET_ACCESS_KEY_SECRET_NAME"
+        )
+
+        if not all([
+            aws_access_key_id_secret_name,
+            aws_secret_access_key_secret_name
+        ]):
+            logger.error("Missing AWS credentials configuration")
+            return {}
+
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id = get_secret(
+            aws_access_key_id_secret_name or ""
+        ).strip()
+        aws_secret_access_key = get_secret(
+            aws_secret_access_key_secret_name or ""
+        ).strip()
+
+        logger.info(
+            f"Retrieved AWS credentials - Access Key ID length: "
+            f"{len(aws_access_key_id)}, Secret Access Key length: "
+            f"{len(aws_secret_access_key)}"
+        )
+
+        # Configure AWS session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
+        )
+
+        # Create DynamoDB resource
+        dynamodb = session.resource('dynamodb', region_name='ap-northeast-1')
+        table_name = os.getenv("DDB_TABLE_NAME", "reply-bot-context-staging")
+        table = dynamodb.Table(table_name)
+
+        logger.info(f"Querying DynamoDB table: {table_name}")
+        resp = table.get_item(Key={"context_id": context_id})
+        item = resp.get("Item") or {}
+
+        if item:
+            logger.info(
+                f"Retrieved DynamoDB context: "
+                f"sender={item.get('sender_email', 'N/A')}, "
+                f"subject={item.get('subject', 'N/A')}"
+            )
+        else:
+            logger.warning(
+                f"No item found in DynamoDB for context_id: {context_id}"
+            )
+
+        return item
+
+    except Exception as e:
+        logger.error(
+            f"Failed to get DynamoDB context: {e}", exc_info=True
+        )
+        return {}
+
+
+def send_email_via_ses(
+    sender: str, recipient: str, subject: str, body: str
+) -> bool:
+    """Send email via AWS SES"""
+    try:
+        logger.info(
+            f"Attempting to send email via SES: sender={sender}, "
+            f"recipient={recipient}, subject={subject}"
+        )
+
+        # Import boto3 for SES access
+        import boto3
+
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id_secret_name = os.getenv(
+            "AWS_ACCESS_KEY_ID_SECRET_NAME"
+        )
+        aws_secret_access_key_secret_name = os.getenv(
+            "AWS_SECRET_ACCESS_KEY_SECRET_NAME"
+        )
+
+        if not all([
+            aws_access_key_id_secret_name,
+            aws_secret_access_key_secret_name
+        ]):
+            logger.error("Missing AWS credentials configuration for SES")
+            return False
+
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id = get_secret(
+            aws_access_key_id_secret_name or ""
+        ).strip()
+        aws_secret_access_key = get_secret(
+            aws_secret_access_key_secret_name or ""
+        ).strip()
+
+        logger.info(
+            f"Retrieved AWS credentials for SES - Access Key ID length: "
+            f"{len(aws_access_key_id)}"
+        )
+
+        # Configure AWS session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
+        )
+
+        # Create SES client
+        ses_client = session.client('ses', region_name='ap-northeast-1')
+
+        # Send email
+        response = ses_client.send_email(
+            Source=sender,
+            Destination={'ToAddresses': [recipient]},
+            Message={
+                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}
+            }
+        )
+
+        message_id = response.get('MessageId', 'Unknown')
+        logger.info(
+            f"Successfully sent email via SES. MessageId: {message_id}"
+        )
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Failed to send email via SES: {e}", exc_info=True
+        )
+        return False
+
+
+def open_slack_modal(
+    trigger_id: str, context_id: str, external_id: str
+) -> bool:
     """Open Slack modal for reply generation"""
     try:
         from slack_sdk import WebClient
@@ -81,7 +231,7 @@ def open_slack_modal(trigger_id: str, context_id: str) -> bool:
             "private_metadata": json.dumps({"context_id": context_id}),
             "title": {"type": "plain_text", "text": "AI返信アシスタント"},
             "close": {"type": "plain_text", "text": "閉じる"},
-            "external_id": f"ai-reply-{context_id}",
+            "external_id": external_id,
             "blocks": [
                 {
                     "type": "header",
@@ -104,7 +254,10 @@ def open_slack_modal(trigger_id: str, context_id: str) -> bool:
         }
 
         client.views_open(trigger_id=trigger_id, view=view)
-        logger.info(f"Opened Slack modal for context_id: {context_id}")
+        logger.info(
+            f"Opened Slack modal for context_id: {context_id}, "
+            f"external_id: {external_id}"
+        )
         return True
 
     except SlackApiError as e:
@@ -246,12 +399,15 @@ def async_generate():
 def slack_events():
     """Handle Slack events (URL verification and interactions)"""
     try:
+        logger.info("Received Slack event request")
+
         # Get headers
         timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
         signature = request.headers.get("X-Slack-Signature", "")
 
         # Get request body
         body = request.get_data()
+        logger.info(f"Request body length: {len(body)}")
 
         # Verify signature
         if not verify_slack_signature(timestamp, signature, body):
@@ -263,16 +419,31 @@ def slack_events():
             # Slack interactive components
             form_data = request.form
             payload_str = form_data.get("payload", "{}")
+            logger.info(
+                f"Received form-encoded payload: {payload_str[:200]}..."
+            )
             try:
                 payload = json.loads(payload_str)
             except json.JSONDecodeError:
+                logger.error(f"Failed to parse form payload: {payload_str}")
                 return jsonify({"error": "Invalid payload"}), 400
         else:
             # Slack events API
             try:
                 payload = request.get_json()
-            except Exception:
+                logger.info(
+                    f"Received JSON payload: "
+                    f"{json.dumps(payload, ensure_ascii=False)[:200]}..."
+                )
+            except Exception as e:
+                logger.error(f"Failed to parse JSON payload: {e}")
                 return jsonify({"error": "Invalid JSON"}), 400
+
+        # Log the event type for debugging
+        event_type = payload.get("type", "unknown")
+        logger.info(
+            f"Processing Slack event type: {event_type}"
+        )
 
         # Handle URL verification challenge
         if payload.get("type") == "url_verification":
@@ -282,9 +453,11 @@ def slack_events():
 
         # Handle interactive components (button clicks)
         if payload.get("type") == "block_actions":
+            logger.info("Processing block_actions payload")
             actions = payload.get("actions", [])
             if actions:
                 action = actions[0]
+                logger.info(f"Action ID: {action.get('action_id')}")
                 if action.get("action_id") == "generate_reply_action":
                     # Extract context_id from button value
                     try:
@@ -292,20 +465,26 @@ def slack_events():
                         context_id = value_data.get("context_id", "")
                         trigger_id = payload.get("trigger_id", "")
                         external_id = (
-                            f"ai-reply-{context_id}" if context_id else ""
+                            f"ai-reply-{context_id}-{int(time.time())}"
+                            if context_id else ""
                         )
                         stage = os.getenv("STAGE", "staging")
 
                         if context_id and trigger_id:
+                            logger.info(
+                                f"Opening modal for context_id: {context_id}, "
+                                f"trigger_id: {trigger_id}"
+                            )
                             # Open modal immediately
                             modal_success = open_slack_modal(
-                                trigger_id, context_id
+                                trigger_id, context_id, external_id
                             )
                             if not modal_success:
                                 logger.error("Failed to open Slack modal")
                                 return jsonify({
                                     "error": "Failed to open modal"
                                 }), 500
+                            logger.info("Modal opened successfully")
 
                             # Trigger Cloud Run Job for async generation
                             job_success = trigger_cloud_run_job(
@@ -327,6 +506,141 @@ def slack_events():
                     except Exception as e:
                         logger.error(f"Error processing block_actions: {e}")
                         return jsonify({"error": "Processing failed"}), 500
+
+        # Handle view submission (modal form submission)
+        if payload.get("type") == "view_submission":
+            logger.info("Processing view_submission payload")
+            try:
+                view = payload.get("view", {})
+                private_metadata = view.get("private_metadata", "{}")
+
+                # Parse private metadata to get context_id
+                try:
+                    metadata = json.loads(private_metadata)
+                    context_id = metadata.get("context_id", "")
+                except json.JSONDecodeError:
+                    logger.error("Failed to parse private_metadata")
+                    return jsonify({"error": "Invalid metadata"}), 400
+
+                if not context_id:
+                    logger.error("Missing context_id in private_metadata")
+                    return jsonify({"error": "Missing context_id"}), 400
+
+                logger.info(
+                    f"Processing view_submission for context_id: {context_id}"
+                )
+
+                # Get edited text from form submission
+                values = view.get("state", {}).get("values", {})
+                editable_reply_block = values.get("editable_reply_block", {})
+                editable_reply_input = editable_reply_block.get(
+                    "editable_reply_input", {}
+                )
+                edited_text = editable_reply_input.get("value", "")
+
+                if not edited_text:
+                    logger.error("No edited text found in form submission")
+                    return jsonify({"error": "No text provided"}), 400
+
+                logger.info(
+                    f"Retrieved edited text with length: {len(edited_text)}"
+                )
+
+                # Get context information from DynamoDB
+                context = get_dynamodb_context(context_id)
+                if not context:
+                    logger.error(
+                        f"Failed to retrieve context for "
+                        f"context_id: {context_id}"
+                    )
+                    return jsonify(
+                        {"error": "Failed to retrieve context"}
+                    ), 500
+
+                # Extract email information from context
+                sender_email = context.get("sender_email", "")
+                subject = context.get("subject", "")
+
+                if not sender_email:
+                    logger.error("No sender email found in context")
+                    return jsonify({"error": "No sender email found"}), 400
+
+                logger.info(
+                    f"Preparing to send email to: {sender_email}, "
+                    f"subject: {subject}"
+                )
+
+                # Get sender email address from environment
+                reply_sender = os.getenv("SENDER_EMAIL_ADDRESS", "")
+                if not reply_sender:
+                    logger.error(
+                        "SENDER_EMAIL_ADDRESS environment variable not set"
+                    )
+                    return jsonify(
+                        {"error": "Sender email not configured"}
+                    ), 500
+
+                # Send email via SES
+                email_success = send_email_via_ses(
+                    sender=reply_sender,
+                    recipient=sender_email,
+                    subject=(
+                        f"Re: {subject}" if subject else "Re: お問い合わせへの返信"
+                    ),
+                    body=edited_text
+                )
+
+                if email_success:
+                    logger.info(
+                        f"Successfully sent email to {sender_email}"
+                    )
+
+                    # Send Slack confirmation message
+                    try:
+                        bot_token = get_slack_bot_token()
+                        if bot_token:
+                            from slack_sdk import WebClient
+                            client = WebClient(token=bot_token)
+                            channel_id = os.getenv("SLACK_CHANNEL_ID", "")
+
+                            if channel_id:
+                                client.chat_postMessage(
+                                    channel=channel_id,
+                                    text=f"✅ {sender_email} への返信が完了しました"
+                                )
+                                logger.info(
+                                    "Posted Slack confirmation message"
+                                )
+                            else:
+                                logger.warning(
+                                    "SLACK_CHANNEL_ID not configured"
+                                )
+                        else:
+                            logger.warning(
+                                "Failed to get Slack bot token for "
+                                "confirmation"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to post Slack confirmation: {e}"
+                        )
+
+                    return jsonify({"response_action": "clear"}), 200
+                else:
+                    logger.error(
+                        f"Failed to send email to {sender_email}"
+                    )
+                    return jsonify(
+                        {"error": "Failed to send email"}
+                    ), 500
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing view_submission: {e}", exc_info=True
+                )
+                return jsonify(
+                    {"error": "Processing failed"}
+                ), 500
 
         # Default response
         return jsonify({"status": "ok"}), 200

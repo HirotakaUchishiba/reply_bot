@@ -47,3 +47,13 @@ variable "auth_token" {
   type        = string
   sensitive   = true
 }
+
+variable "sender_email_address" {
+  description = "Email address for sending replies"
+  type        = string
+}
+
+variable "slack_channel_id" {
+  description = "Slack channel ID for notifications"
+  type        = string
+}
