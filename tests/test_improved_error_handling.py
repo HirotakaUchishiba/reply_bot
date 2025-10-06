@@ -96,7 +96,7 @@ class TestImprovedErrorHandling:
             patch("src.app.router.get_context_item") as mock_get,
             patch("src.app.router.SlackClient") as mock_slack,
             patch("src.app.router.generate_reply_draft") as mock_generate,
-            patch("time.time", side_effect=[1000.0, 1000.2])  # Mock time to ensure time_remaining < ai_timeout
+            patch("time.time", return_value=1000.0)  # Mock time to ensure time_remaining < ai_timeout
         ):
             # Setup mocks with very short timeout
             mock_config.return_value = MagicMock(
