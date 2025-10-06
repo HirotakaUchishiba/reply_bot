@@ -246,12 +246,15 @@ def async_generate():
 def slack_events():
     """Handle Slack events (URL verification and interactions)"""
     try:
+        logger.info("Received Slack event request")
+        
         # Get headers
         timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
         signature = request.headers.get("X-Slack-Signature", "")
 
         # Get request body
         body = request.get_data()
+        logger.info(f"Request body length: {len(body)}")
 
         # Verify signature
         if not verify_slack_signature(timestamp, signature, body):
@@ -282,9 +285,11 @@ def slack_events():
 
         # Handle interactive components (button clicks)
         if payload.get("type") == "block_actions":
+            logger.info("Processing block_actions payload")
             actions = payload.get("actions", [])
             if actions:
                 action = actions[0]
+                logger.info(f"Action ID: {action.get('action_id')}")
                 if action.get("action_id") == "generate_reply_action":
                     # Extract context_id from button value
                     try:
@@ -297,6 +302,7 @@ def slack_events():
                         stage = os.getenv("STAGE", "staging")
 
                         if context_id and trigger_id:
+                            logger.info(f"Opening modal for context_id: {context_id}, trigger_id: {trigger_id}")
                             # Open modal immediately
                             modal_success = open_slack_modal(
                                 trigger_id, context_id
@@ -306,6 +312,7 @@ def slack_events():
                                 return jsonify({
                                     "error": "Failed to open modal"
                                 }), 500
+                            logger.info("Modal opened successfully")
 
                             # Trigger Cloud Run Job for async generation
                             job_success = trigger_cloud_run_job(
