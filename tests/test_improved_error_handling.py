@@ -132,10 +132,9 @@ class TestImprovedErrorHandling:
             # Verify that modal was opened with default text
             assert response["statusCode"] == 200
             mock_slack_instance.open_modal.assert_called_once()
-            # AI generation should have been called but with insufficient time
-            # The test shows that even with short timeout, AI generation is attempted
-            # This is expected behavior as the timeout check happens after generation
-            mock_generate.assert_called_once()
+            # AI generation should NOT be called due to insufficient time
+            # time_remaining (1.0) < ai_timeout (2.0), so AI generation is skipped
+            mock_generate.assert_not_called()
 
     def test_modal_display_timeout_error(self):
         """Test error handling when modal display times out."""
