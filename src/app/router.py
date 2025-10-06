@@ -128,7 +128,11 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         # Distinguish block_actions vs view_submission
         event_type = body_json.get("type")
         if event_type == "block_actions":
-            log_info("received block_actions")
+            log_info("received block_actions", 
+                     event_type=event_type,
+                     body_json_keys=list(body_json.keys()),
+                     full_body_json=json.dumps(body_json, ensure_ascii=False))
+            
             # Extract trigger_id and context_id from action value JSON
             trigger_id = body_json.get("trigger_id", "")
             actions = body_json.get("actions") or []
@@ -137,29 +141,75 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 try:
                     val = actions[0].get("value") or "{}"
                     context_id = json.loads(val).get("context_id", "")
-                except Exception:
+                    log_info("extracted context_id from action", 
+                             context_id=context_id,
+                             action_value=val,
+                             trigger_id=trigger_id)
+                except Exception as exc:
+                    log_error("failed to extract context_id from action", 
+                              error=str(exc),
+                              action_value=actions[0].get("value", "") if actions else "no_actions")
                     context_id = ""
+            
+            log_info("block_actions processing started", 
+                     context_id=context_id,
+                     trigger_id=trigger_id,
+                     has_actions=len(actions) > 0)
             # Prepare initial text with improved error handling and timeout
             bot_token = creds.get("bot_token", "")
+            log_info("credentials retrieved", 
+                     has_bot_token=bool(bot_token),
+                     bot_token_length=len(bot_token) if bot_token else 0,
+                     creds_keys=list(creds.keys()))
+            
             initial_text = "ここにAIが生成した返信文案が表示されます。"
             started = time.time()
+            
+            log_info("starting modal processing", 
+                     context_id=context_id,
+                     trigger_id=trigger_id,
+                     initial_text=initial_text,
+                     started_time=started)
 
             # Enhanced error handling for context retrieval and AI generation
             try:
+                log_info("attempting to retrieve context", context_id=context_id)
                 item = get_context_item(context_id) if context_id else None
+                log_info("context item retrieved", 
+                         context_id=context_id,
+                         has_item=bool(item),
+                         item_keys=list(item.keys()) if item else [])
+                
                 redacted_body = (item or {}).get("body_redacted") or ""
                 pii_map_raw = (item or {}).get("pii_map") or "{}"
+                log_info("extracted context data", 
+                         context_id=context_id,
+                         has_redacted_body=bool(redacted_body),
+                         redacted_body_length=len(redacted_body),
+                         pii_map_raw=pii_map_raw)
+                
                 pii_map: Dict[str, str] = {}
                 try:
                     pii_map = json.loads(str(pii_map_raw))
+                    log_info("pii_map parsed successfully", 
+                             context_id=context_id,
+                             pii_map_keys=list(pii_map.keys()))
                 except Exception as exc:
                     log_error("failed to parse pii_map", context_id=context_id,
-                              error=str(exc))
+                              error=str(exc),
+                              pii_map_raw=pii_map_raw)
                     pii_map = {}
 
                 # Improved timeout protection: prioritize modal display
                 time_remaining = (cfg.slack_modal_timeout_seconds -
                                   (time.time() - started))
+                
+                log_info("timeout calculation", 
+                         context_id=context_id,
+                         time_remaining=time_remaining,
+                         slack_modal_timeout=cfg.slack_modal_timeout_seconds,
+                         ai_generation_timeout=cfg.ai_generation_timeout_seconds,
+                         async_endpoint=cfg.async_generation_endpoint)
 
                 # Only attempt AI generation if we have enough time
                 if (redacted_body and not cfg.async_generation_endpoint and
@@ -167,29 +217,42 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     try:
                         log_info("attempting inline AI generation",
                                  context_id=context_id,
-                                 time_remaining=time_remaining)
+                                 time_remaining=time_remaining,
+                                 redacted_body_preview=redacted_body[:100] + "..." if len(redacted_body) > 100 else redacted_body)
                         draft = generate_reply_draft(redacted_body)
+                        log_info("AI generation completed", 
+                                 context_id=context_id,
+                                 has_draft=bool(draft),
+                                 draft_length=len(draft) if draft else 0)
+                        
                         if draft:
                             try:
                                 initial_text = reidentify(draft, pii_map)
                                 log_info("inline AI generation successful",
-                                         context_id=context_id)
+                                         context_id=context_id,
+                                         final_text_length=len(initial_text),
+                                         pii_map_size=len(pii_map))
                             except Exception as exc:
                                 log_error("failed to reidentify PII",
                                           context_id=context_id,
-                                          error=str(exc))
+                                          error=str(exc),
+                                          draft_preview=draft[:100] + "..." if len(draft) > 100 else draft)
                                 initial_text = draft
                     except Exception as exc:
                         log_error("inline AI generation failed",
-                                  context_id=context_id, error=str(exc))
+                                  context_id=context_id, 
+                                  error=str(exc),
+                                  error_type=type(exc).__name__)
                         # Continue with default text - don't fail operation
                 elif cfg.async_generation_endpoint:
                     log_info("async endpoint configured, skipping inline generation",
-                             context_id=context_id)
+                             context_id=context_id,
+                             async_endpoint=cfg.async_generation_endpoint)
                 else:
                     log_info("insufficient time for AI generation, using default text",
                              context_id=context_id,
-                             time_remaining=time_remaining)
+                             time_remaining=time_remaining,
+                             has_redacted_body=bool(redacted_body))
 
             except Exception as exc:
                 log_error("context retrieval failed", context_id=context_id,
@@ -197,33 +260,63 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 # Continue with default text - don't fail the entire operation
 
             # Enhanced modal display with better error handling
+            log_info("preparing modal display", 
+                     context_id=context_id,
+                     has_bot_token=bool(bot_token),
+                     has_trigger_id=bool(trigger_id),
+                     initial_text_length=len(initial_text))
+            
             if not bot_token:
                 log_error("slack bot token not available",
-                          context_id=context_id)
+                          context_id=context_id,
+                          creds_keys=list(creds.keys()))
                 return _response(500, {"error": "slack configuration error"})
 
             if not trigger_id:
                 log_error("slack trigger_id not available",
-                          context_id=context_id)
+                          context_id=context_id,
+                          body_json_keys=list(body_json.keys()))
                 return _response(400, {"error": "invalid slack request"})
 
             try:
+                log_info("creating Slack client", context_id=context_id)
                 slack = SlackClient(bot_token)
                 external_id = f"ai-reply-{context_id}" if context_id else None
+                
+                log_info("building modal view", 
+                         context_id=context_id,
+                         external_id=external_id,
+                         initial_text_preview=initial_text[:100] + "..." if len(initial_text) > 100 else initial_text)
+                
                 view = build_ai_reply_modal(
                     context_id=context_id or "",
                     initial_text=initial_text,
                     external_id=external_id,
                 )
+                
+                log_info("modal view built successfully", 
+                         context_id=context_id,
+                         view_keys=list(view.keys()) if isinstance(view, dict) else "not_dict")
 
                 # Check if we still have time to open modal
                 time_elapsed = time.time() - started
+                log_info("time check before modal open", 
+                         context_id=context_id,
+                         time_elapsed=time_elapsed,
+                         timeout_threshold=cfg.slack_modal_timeout_seconds,
+                         can_open_modal=time_elapsed < cfg.slack_modal_timeout_seconds)
+                
                 if time_elapsed >= cfg.slack_modal_timeout_seconds:
                     log_error("modal display timeout - too late to open modal",
                               context_id=context_id, time_elapsed=time_elapsed,
                               timeout_threshold=cfg.slack_modal_timeout_seconds)
                     return _response(408, {"error": "request timeout"})
 
+                log_info("attempting to open Slack modal", 
+                         context_id=context_id,
+                         trigger_id=trigger_id,
+                         time_elapsed=time_elapsed)
+                
                 slack.open_modal(trigger_id=trigger_id, view=view)
                 log_info("slack modal opened successfully",
                          context_id=context_id, time_elapsed=time_elapsed)
@@ -231,10 +324,16 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as exc:
                 log_error("failed to open slack modal", context_id=context_id,
                           error=str(exc),
+                          error_type=type(exc).__name__,
                           time_elapsed=time.time() - started)
                 return _response(500, {"error": "modal display failed"})
             # Trigger async generation if configured
             try:
+                log_info("checking async generation configuration", 
+                         context_id=context_id,
+                         has_async_endpoint=bool(cfg.async_generation_endpoint),
+                         async_endpoint=cfg.async_generation_endpoint)
+                
                 if cfg.async_generation_endpoint and context_id:
                     payload = {
                         "context_id": context_id,
@@ -245,8 +344,16 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     try:
                         payload["redacted_body"] = redacted_body
                         payload["pii_map"] = pii_map
-                    except Exception:
+                        log_info("added content to async payload", 
+                                 context_id=context_id,
+                                 has_redacted_body=bool(redacted_body),
+                                 pii_map_size=len(pii_map))
+                    except Exception as exc:
+                        log_error("failed to add content to async payload", 
+                                  context_id=context_id,
+                                  error=str(exc))
                         pass
+                    
                     headers = {
                         "Content-Type": "application/json",
                     }
@@ -254,6 +361,16 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                         headers["Authorization"] = (
                             cfg.async_generation_auth_header
                         )
+                        log_info("added auth header to async request", 
+                                 context_id=context_id,
+                                 has_auth_header=bool(cfg.async_generation_auth_header))
+                    
+                    log_info("preparing async generation request", 
+                             context_id=context_id,
+                             endpoint=cfg.async_generation_endpoint,
+                             payload_keys=list(payload.keys()),
+                             headers_keys=list(headers.keys()))
+                    
                     import urllib.request
                     req = urllib.request.Request(
                         url=cfg.async_generation_endpoint,
@@ -261,14 +378,34 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                         headers=headers,
                         method="POST",
                     )
+                    
                     # Fire-and-forget; do not block. Small timeout.
                     try:
+                        log_info("sending async generation request", 
+                                 context_id=context_id,
+                                 timeout=1)
                         urllib.request.urlopen(req, timeout=1)
-                    except Exception:
+                        log_info("async generation request sent successfully", 
+                                 context_id=context_id)
+                    except Exception as exc:
+                        log_error("async generation request failed", 
+                                  context_id=context_id,
+                                  error=str(exc),
+                                  error_type=type(exc).__name__)
                         pass
+                else:
+                    log_info("skipping async generation", 
+                             context_id=context_id,
+                             reason="no_endpoint_or_context" if not cfg.async_generation_endpoint else "no_context_id")
             except Exception as exc:
-                log_error("failed to trigger async generation", error=str(exc))
+                log_error("failed to trigger async generation", 
+                          context_id=context_id,
+                          error=str(exc),
+                          error_type=type(exc).__name__)
 
+            log_info("block_actions processing completed successfully", 
+                     context_id=context_id,
+                     total_time_elapsed=time.time() - started)
             return _response(200, {"ack": True})
         if event_type == "view_submission":
             log_info("received view_submission")

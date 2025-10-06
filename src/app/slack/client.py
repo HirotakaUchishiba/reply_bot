@@ -24,26 +24,42 @@ class SlackClient:
         """
         start_time = time.time()
         try:
-            log_info("attempting to open slack modal", trigger_id=trigger_id)
+            log_info("attempting to open slack modal", 
+                     trigger_id=trigger_id,
+                     view_type=view.get("type", "unknown"),
+                     view_blocks_count=len(view.get("blocks", [])) if isinstance(view.get("blocks"), list) else 0,
+                     has_private_metadata=bool(view.get("private_metadata")))
+            
+            log_info("calling Slack API views.open", 
+                     trigger_id=trigger_id,
+                     view_keys=list(view.keys()) if isinstance(view, dict) else "not_dict")
+            
             self._client.views_open(trigger_id=trigger_id, view=view)
             elapsed = time.time() - start_time
-            log_info("slack modal opened successfully", trigger_id=trigger_id,
-                     elapsed=elapsed)
+            log_info("slack modal opened successfully", 
+                     trigger_id=trigger_id,
+                     elapsed=elapsed,
+                     api_call_successful=True)
         except SlackApiError as e:
             elapsed = time.time() - start_time
             error_code = getattr(e, 'response', {}).get('error', 'unknown')
+            error_response = getattr(e, 'response', {})
             log_error("slack API error when opening modal",
                       trigger_id=trigger_id,
                       error=str(e),
                       error_code=error_code,
-                      elapsed=elapsed)
+                      error_response=error_response,
+                      elapsed=elapsed,
+                      api_call_successful=False)
             raise
         except Exception as e:
             elapsed = time.time() - start_time
             log_error("unexpected error when opening modal",
                       trigger_id=trigger_id,
                       error=str(e),
-                      elapsed=elapsed)
+                      error_type=type(e).__name__,
+                      elapsed=elapsed,
+                      api_call_successful=False)
             raise
 
     def post_message(
