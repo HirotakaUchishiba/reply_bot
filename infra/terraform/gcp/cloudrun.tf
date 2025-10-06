@@ -180,6 +180,21 @@ resource "google_cloud_run_v2_job" "reply_generator" {
           value = google_secret_manager_secret.aws_secret_access_key.secret_id
         }
         
+        env {
+          name  = "SENDER_EMAIL_ADDRESS"
+          value = var.sender_email_address
+        }
+        
+        env {
+          name  = "SLACK_CHANNEL_ID"
+          value = var.slack_channel_id
+        }
+        
+        env {
+          name  = "DDB_TABLE_NAME"
+          value = var.ddb_table_name
+        }
+        
         resources {
           limits = {
             cpu    = "2"
