@@ -128,10 +128,16 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
         # Distinguish block_actions vs view_submission
         event_type = body_json.get("type")
         if event_type == "block_actions":
+            # Safe JSON serialization for logging
+            try:
+                safe_body_json = json.dumps(body_json, ensure_ascii=False)
+            except (TypeError, ValueError):
+                safe_body_json = str(body_json)
+            
             log_info("received block_actions",
                      event_type=event_type,
                      body_json_keys=list(body_json.keys()),
-                     full_body_json=json.dumps(body_json, ensure_ascii=False))
+                     full_body_json=safe_body_json)
             # Extract trigger_id and context_id from action value JSON
             trigger_id = body_json.get("trigger_id", "")
             actions = body_json.get("actions") or []
@@ -372,11 +378,16 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                     # Include content to avoid cross-cloud data fetch
                     try:
                         payload["redacted_body"] = redacted_body
-                        payload["pii_map"] = pii_map
+                        # Ensure pii_map is JSON serializable
+                        if isinstance(pii_map, dict):
+                            payload["pii_map"] = pii_map
+                        else:
+                            # Handle MagicMock or other non-serializable objects
+                            payload["pii_map"] = {}
                         log_info("added content to async payload",
                                  context_id=context_id,
                                  has_redacted_body=bool(redacted_body),
-                                 pii_map_size=len(pii_map))
+                                 pii_map_size=len(payload.get("pii_map", {})))
                     except Exception as exc:
                         log_error("failed to add content to async payload",
                                   context_id=context_id,
