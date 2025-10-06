@@ -73,7 +73,8 @@ def open_slack_modal(trigger_id: str, context_id: str) -> bool:
 
         client = WebClient(token=bot_token)
 
-        # Create modal view (initially shows loading state; worker will update with input)
+        # Create modal view (initially shows loading state;
+        # worker will update with input)
         view = {
             "type": "modal",
             "callback_id": "ai_reply_modal_submission",
@@ -149,13 +150,15 @@ def trigger_cloud_run_job(
 ) -> bool:
     """Trigger Cloud Run Job for async processing"""
     try:
-        logger.info(f"Starting Cloud Run Job trigger for context_id: {context_id}")
+        msg = f"Starting Cloud Run Job trigger for context_id: {context_id}"
+        logger.info(msg)
         client = run_v2.JobsClient()
         job_name = (
             f"projects/{PROJECT_ID}/locations/{REGION}/jobs/{JOB_NAME}"
         )
         logger.info(f"Job name: {job_name}")
-        logger.info(f"Project ID: {PROJECT_ID}, Region: {REGION}, Job Name: {JOB_NAME}")
+        msg = f"Project ID: {PROJECT_ID}, Region: {REGION}, Job: {JOB_NAME}"
+        logger.info(msg)
 
         # Prepare job execution request
         request = run_v2.RunJobRequest(
@@ -176,13 +179,15 @@ def trigger_cloud_run_job(
                 ]
             )
         )
-        
-        logger.info(f"Created RunJobRequest with env vars: CONTEXT_ID={context_id}, EXTERNAL_ID={external_id}, STAGE={stage}")
+
+        msg = f"Created RunJobRequest: CONTEXT_ID={context_id}"
+        logger.info(msg)
 
         # Execute job
         logger.info("Calling client.run_job()")
         client.run_job(request=request)
-        logger.info(f"Successfully triggered Cloud Run Job for context_id: {context_id}")
+        msg = f"Successfully triggered Cloud Run Job for: {context_id}"
+        logger.info(msg)
         return True
 
     except Exception as e:
@@ -204,7 +209,7 @@ def async_generate():
         # Get request data
         data = request.get_json()
         logger.info(f"Request data: {data}")
-        
+
         if not data:
             logger.error("No JSON data provided")
             return jsonify({"error": "No JSON data provided"}), 400
@@ -212,11 +217,13 @@ def async_generate():
         context_id = data.get("context_id")
         external_id = data.get("external_id")
         stage = data.get("stage")
-        
-        logger.info(f"Extracted parameters: context_id={context_id}, external_id={external_id}, stage={stage}")
+
+        msg = f"Extracted params: context_id={context_id}"
+        logger.info(msg)
 
         if not all([context_id, external_id, stage]):
-            logger.error(f"Missing required fields: context_id={context_id}, external_id={external_id}, stage={stage}")
+            msg = f"Missing required fields: context_id={context_id}"
+            logger.error(msg)
             return jsonify({"error": "Missing required fields"}), 400
 
         # Trigger Cloud Run Job
@@ -224,7 +231,7 @@ def async_generate():
         success = trigger_cloud_run_job(context_id, external_id, stage)
 
         if success:
-            logger.info(f"Successfully triggered job for context_id: {context_id}")
+            logger.info(f"Successfully triggered job for: {context_id}")
             return jsonify({"status": "job_triggered"}), 200
         else:
             logger.error(f"Failed to trigger job for context_id: {context_id}")
