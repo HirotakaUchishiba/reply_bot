@@ -205,6 +205,10 @@ def send_email_via_ses(
         logger.error(
             f"Failed to send email via SES: {e}", exc_info=True
         )
+        logger.error(
+            f"SES error details - sender: {sender}, "
+            f"recipient: {recipient}, subject: {subject}"
+        )
         return False
 
 
@@ -604,12 +608,22 @@ def slack_events():
                             channel_id = os.getenv("SLACK_CHANNEL_ID", "")
 
                             if channel_id:
+                                # Extract email address from sender_email
+                                # if it's in format "Name <email>"
+                                display_email = sender_email
+                                if "<" in sender_email and ">" in sender_email:
+                                    # Extract email from "Name <email>" format
+                                    start = sender_email.find("<") + 1
+                                    end = sender_email.find(">")
+                                    if start > 0 and end > start:
+                                        display_email = sender_email[start:end]
                                 client.chat_postMessage(
                                     channel=channel_id,
-                                    text=f"✅ {sender_email} への返信が完了しました"
+                                    text=f"✅ {display_email} への返信が完了しました"
                                 )
                                 logger.info(
-                                    "Posted Slack confirmation message"
+                                    f"Posted Slack confirmation message for "
+                                    f"{display_email}"
                                 )
                             else:
                                 logger.warning(
@@ -622,16 +636,22 @@ def slack_events():
                             )
                     except Exception as e:
                         logger.error(
-                            f"Failed to post Slack confirmation: {e}"
+                            f"Failed to post Slack confirmation: {e}",
+                            exc_info=True
                         )
 
-                    return jsonify({"response_action": "clear"}), 200
+                    return jsonify(
+                        {"response_action": "clear"}
+                    ), 200
                 else:
                     logger.error(
                         f"Failed to send email to {sender_email}"
                     )
                     return jsonify(
-                        {"error": "Failed to send email"}
+                        {
+                            "error": "Failed to send email",
+                            "details": "SES email sending failed"
+                        }
                     ), 500
 
             except Exception as e:
