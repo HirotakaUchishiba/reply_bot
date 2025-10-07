@@ -133,7 +133,6 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 safe_body_json = json.dumps(body_json, ensure_ascii=False)
             except (TypeError, ValueError):
                 safe_body_json = str(body_json)
-            
             log_info("received block_actions",
                      event_type=event_type,
                      body_json_keys=list(body_json.keys()),
@@ -184,7 +183,6 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 log_info("attempting to retrieve context",
                          context_id=context_id)
                 item = get_context_item(context_id) if context_id else None
-                
                 # Handle MagicMock objects safely
                 if item is not None and hasattr(item, '_mock_name'):
                     # This is a MagicMock object, convert to dict
@@ -193,11 +191,12 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                         "body_redacted": "Test email content",
                         "pii_map": "{}"
                     }
-                
                 log_info("context item retrieved",
                          context_id=context_id,
                          has_item=bool(item),
-                         item_keys=list(item.keys()) if item and isinstance(item, dict) else [])
+                         item_keys=list(item.keys()) if item and isinstance(
+                             item, dict
+                         ) else [])
 
                 redacted_body = (item or {}).get("body_redacted") or ""
                 pii_map_raw = (item or {}).get("pii_map") or "{}"
@@ -221,20 +220,19 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
                 # Improved timeout protection: prioritize modal display
                 # Handle MagicMock objects in timeout calculation
-                modal_timeout = getattr(cfg, 'slack_modal_timeout_seconds', 2.8)
+                modal_timeout = getattr(
+                    cfg, 'slack_modal_timeout_seconds', 2.8
+                )
                 ai_timeout = getattr(cfg, 'ai_generation_timeout_seconds', 1.0)
-                
                 # Convert MagicMock objects to appropriate float values
                 if hasattr(modal_timeout, '_mock_name'):
                     modal_timeout = 2.8  # Default value for tests
                 else:
                     modal_timeout = float(modal_timeout)
-                    
                 if hasattr(ai_timeout, '_mock_name'):
                     ai_timeout = 1.0  # Default value for tests
                 else:
                     ai_timeout = float(ai_timeout)
-                
                 time_remaining = modal_timeout - (time.time() - started)
 
                 timeout_sec = modal_timeout
@@ -248,10 +246,11 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
 
                 # Only attempt AI generation if we have enough time
                 # Handle MagicMock objects for async_generation_endpoint
-                async_endpoint = getattr(cfg, 'async_generation_endpoint', '')
+                async_endpoint = getattr(
+                    cfg, 'async_generation_endpoint', ''
+                )
                 if hasattr(async_endpoint, '_mock_name'):
                     async_endpoint = ''
-                
                 if (redacted_body and not async_endpoint and
                         time_remaining > ai_timeout):
                     try:
@@ -360,7 +359,9 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                 # Check if we still have time to open modal
                 time_elapsed = time.time() - started
                 # Handle MagicMock objects in timeout comparison
-                timeout_seconds = getattr(cfg, 'slack_modal_timeout_seconds', 2.8)
+                timeout_seconds = getattr(
+                    cfg, 'slack_modal_timeout_seconds', 2.8
+                )
                 if hasattr(timeout_seconds, '__float__'):
                     timeout_seconds = float(timeout_seconds)
                 can_open = time_elapsed < timeout_seconds
@@ -415,7 +416,8 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                         if isinstance(pii_map, dict):
                             payload["pii_map"] = pii_map
                         else:
-                            # Handle MagicMock or other non-serializable objects
+                            # Handle MagicMock or other non-serializable
+                            # objects
                             payload["pii_map"] = {}
                         log_info("added content to async payload",
                                  context_id=context_id,

@@ -15,58 +15,90 @@ class TestAsyncConfig:
         """Test AppConfig includes async endpoint fields"""
         config = AppConfig(
             stage="staging",
-            slack_signing_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            openai_api_key_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            slack_app_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            slack_signing_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            openai_api_key_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            slack_app_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             ddb_table_name="test-table",
             sender_email_address="test@example.com",
             slack_channel_id="C1234567890",
-            gmail_oauth_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            gmail_oauth_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
-            async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
+            async_generation_endpoint=(
+                "https://test-cloudrun.example.com/async/generate"
+            ),
             async_generation_auth_header="Bearer test-token",
             slack_modal_timeout_seconds=2.8,
             ai_generation_timeout_seconds=1.0
         )
 
-        assert config.async_generation_endpoint == "https://test-cloudrun.example.com/async/generate"
+        assert config.async_generation_endpoint == (
+            "https://test-cloudrun.example.com/async/generate"
+        )
         assert config.async_generation_auth_header == "Bearer test-token"
 
     def test_load_config_with_async_env_vars(self):
         """Test load_config reads async environment variables"""
         env_vars = {
             "STAGE": "staging",
-            "SLACK_SIGNING_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            "OPENAI_API_KEY_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            "SLACK_APP_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            "SLACK_SIGNING_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            "OPENAI_API_KEY_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            "SLACK_APP_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             "DDB_TABLE_NAME": "test-table",
             "SENDER_EMAIL_ADDRESS": "test@example.com",
             "SLACK_CHANNEL_ID": "C1234567890",
-            "GMAIL_OAUTH_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            "GMAIL_OAUTH_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             "SES_INBOUND_BUCKET_NAME": "test-bucket",
             "SES_INBOUND_PREFIX": "inbound/",
-            "ASYNC_GENERATION_ENDPOINT": "https://test-cloudrun.example.com/async/generate",
+            "ASYNC_GENERATION_ENDPOINT": (
+                "https://test-cloudrun.example.com/async/generate"
+            ),
             "ASYNC_GENERATION_AUTH_HEADER": "Bearer test-token"
         }
 
         with patch.dict(os.environ, env_vars):
             config = load_config()
 
-            assert config.async_generation_endpoint == "https://test-cloudrun.example.com/async/generate"
+            assert config.async_generation_endpoint == (
+                "https://test-cloudrun.example.com/async/generate"
+            )
             assert config.async_generation_auth_header == "Bearer test-token"
 
     def test_load_config_without_async_env_vars(self):
         """Test load_config with empty async environment variables"""
         env_vars = {
             "STAGE": "staging",
-            "SLACK_SIGNING_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            "OPENAI_API_KEY_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            "SLACK_APP_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            "SLACK_SIGNING_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            "OPENAI_API_KEY_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            "SLACK_APP_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             "DDB_TABLE_NAME": "test-table",
             "SENDER_EMAIL_ADDRESS": "test@example.com",
             "SLACK_CHANNEL_ID": "C1234567890",
-            "GMAIL_OAUTH_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            "GMAIL_OAUTH_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             "SES_INBOUND_BUCKET_NAME": "test-bucket",
             "SES_INBOUND_PREFIX": "inbound/",
             "ASYNC_GENERATION_ENDPOINT": "",
@@ -83,13 +115,21 @@ class TestAsyncConfig:
         """Test load_config with missing async environment variables"""
         env_vars = {
             "STAGE": "staging",
-            "SLACK_SIGNING_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            "OPENAI_API_KEY_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            "SLACK_APP_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            "SLACK_SIGNING_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            "OPENAI_API_KEY_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            "SLACK_APP_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             "DDB_TABLE_NAME": "test-table",
             "SENDER_EMAIL_ADDRESS": "test@example.com",
             "SLACK_CHANNEL_ID": "C1234567890",
-            "GMAIL_OAUTH_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            "GMAIL_OAUTH_SECRET_ARN": (
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             "SES_INBOUND_BUCKET_NAME": "test-bucket",
             "SES_INBOUND_PREFIX": "inbound/"
             # Missing ASYNC_GENERATION_* variables
@@ -106,16 +146,26 @@ class TestAsyncConfig:
         # Valid HTTPS endpoint
         config = AppConfig(
             stage="staging",
-            slack_signing_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            openai_api_key_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            slack_app_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            slack_signing_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            openai_api_key_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            slack_app_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             ddb_table_name="test-table",
             sender_email_address="test@example.com",
             slack_channel_id="C1234567890",
-            gmail_oauth_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            gmail_oauth_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
-            async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
+            async_generation_endpoint=(
+                "https://test-cloudrun.example.com/async/generate"
+            ),
             async_generation_auth_header="Bearer test-token",
             slack_modal_timeout_seconds=2.8,
             ai_generation_timeout_seconds=1.0
@@ -136,20 +186,33 @@ class TestAsyncConfig:
         for auth_header in test_cases:
             config = AppConfig(
                 stage="staging",
-                slack_signing_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-                openai_api_key_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-                slack_app_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+                slack_signing_secret_arn=(
+                    "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+                ),
+                openai_api_key_secret_arn=(
+                    "arn:aws:secretsmanager:us-east-1:123456789012:"
+                    "secret:openai"
+                ),
+                slack_app_secret_arn=(
+                    "arn:aws:secretsmanager:us-east-1:123456789012:"
+                    "secret:slack"
+                ),
                 ddb_table_name="test-table",
                 sender_email_address="test@example.com",
                 slack_channel_id="C1234567890",
-                gmail_oauth_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+                gmail_oauth_secret_arn=(
+                    "arn:aws:secretsmanager:us-east-1:123456789012:"
+                    "secret:gmail"
+                ),
                 ses_inbound_bucket_name="test-bucket",
                 ses_inbound_prefix="inbound/",
-            async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
-            async_generation_auth_header=auth_header,
-            slack_modal_timeout_seconds=2.8,
-            ai_generation_timeout_seconds=1.0
-        )
+                async_generation_endpoint=(
+                    "https://test-cloudrun.example.com/async/generate"
+                ),
+                async_generation_auth_header=auth_header,
+                slack_modal_timeout_seconds=2.8,
+                ai_generation_timeout_seconds=1.0
+            )
 
             assert config.async_generation_auth_header == auth_header
 
@@ -157,16 +220,26 @@ class TestAsyncConfig:
         """Test that AppConfig is immutable (frozen dataclass)"""
         config = AppConfig(
             stage="staging",
-            slack_signing_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:test",
-            openai_api_key_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:openai",
-            slack_app_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:slack",
+            slack_signing_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+            ),
+            openai_api_key_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:openai"
+            ),
+            slack_app_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:slack"
+            ),
             ddb_table_name="test-table",
             sender_email_address="test@example.com",
             slack_channel_id="C1234567890",
-            gmail_oauth_secret_arn="arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail",
+            gmail_oauth_secret_arn=(
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:gmail"
+            ),
             ses_inbound_bucket_name="test-bucket",
             ses_inbound_prefix="inbound/",
-            async_generation_endpoint="https://test-cloudrun.example.com/async/generate",
+            async_generation_endpoint=(
+                "https://test-cloudrun.example.com/async/generate"
+            ),
             async_generation_auth_header="Bearer test-token",
             slack_modal_timeout_seconds=2.8,
             ai_generation_timeout_seconds=1.0
