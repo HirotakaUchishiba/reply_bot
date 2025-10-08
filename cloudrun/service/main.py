@@ -9,6 +9,10 @@ import time
 from flask import Flask, request, jsonify
 import google.cloud.run_v2 as run_v2
 from google.cloud import secretmanager
+import email.utils as eutils
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import html as _html
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
