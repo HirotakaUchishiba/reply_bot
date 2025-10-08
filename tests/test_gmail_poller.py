@@ -76,6 +76,7 @@ class TestGmailPoller:
             ) as mock_resolve_slack,
             patch("src.app.gmail_poller.SlackClient") as mock_slack,
             patch("src.app.gmail_poller.redact_and_map") as mock_redact,
+            patch("src.app.gmail_poller.is_inquiry") as mock_is_inquiry,
         ):
             mock_cfg.return_value = MagicMock(
                 gmail_oauth_secret_arn=(
@@ -105,6 +106,8 @@ class TestGmailPoller:
             # passthrough redaction
             mock_redact.side_effect = lambda x: (x, {})
 
+            mock_is_inquiry.return_value = True
+
             response = handler({}, None)
 
             assert response["statusCode"] == 200
@@ -131,6 +134,7 @@ class TestGmailPoller:
             ) as mock_resolve_slack,
             patch("src.app.gmail_poller.SlackClient") as mock_slack,
             patch("src.app.gmail_poller.redact_and_map") as mock_redact,
+            patch("src.app.gmail_poller.is_inquiry") as mock_is_inquiry,
         ):
             mock_cfg.return_value = MagicMock(
                 gmail_oauth_secret_arn=(
@@ -162,6 +166,7 @@ class TestGmailPoller:
             }
             mock_slack.return_value = MagicMock()
             mock_redact.side_effect = lambda x: (x, {})
+            mock_is_inquiry.return_value = True
 
             response = handler({}, None)
 
