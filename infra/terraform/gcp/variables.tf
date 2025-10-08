@@ -57,3 +57,27 @@ variable "slack_channel_id" {
   description = "Slack channel ID for notifications"
   type        = string
 }
+
+variable "reply_to_email" {
+  description = "Reply-To email address for sent emails"
+  type        = string
+  default     = "hirotaka19990821@gmail.com"
+}
+
+variable "list_unsubscribe_mailto" {
+  description = "Mailto address for List-Unsubscribe header"
+  type        = string
+  default     = "hirotaka19990821@gmail.com"
+}
+
+variable "list_unsubscribe_http" {
+  description = "HTTP URL for List-Unsubscribe header"
+  type        = string
+  default     = "https://hirotakauchishiba.studio.site"
+}
+
+variable "ses_configuration_set" {
+  description = "SES Configuration Set name for monitoring"
+  type        = string
+  default     = "reply-bot-staging"
+}
