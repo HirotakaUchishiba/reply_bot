@@ -9,10 +9,6 @@ import time
 from flask import Flask, request, jsonify
 import google.cloud.run_v2 as run_v2
 from google.cloud import secretmanager
-import email.utils as eutils
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import html as _html
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -139,11 +135,17 @@ def get_dynamodb_context(context_id: str) -> dict:
         return {}
 
 
-def send_email_via_ses_enhanced(
+def send_email_via_ses(
     sender: str, recipient: str, subject: str, body: str
 ) -> bool:
-    """Send email via AWS SES (Raw Email) with best-practice headers."""
+    """Send email via AWS SES"""
     try:
+        logger.info(
+            f"Attempting to send email via SES: sender={sender}, "
+            f"recipient={recipient}, subject={subject}"
+        )
+
+        # Import boto3 for SES access
         import boto3
 
         # Get AWS credentials from Secret Manager
@@ -153,6 +155,7 @@ def send_email_via_ses_enhanced(
         aws_secret_access_key_secret_name = os.getenv(
             "AWS_SECRET_ACCESS_KEY_SECRET_NAME"
         )
+
         if not all([
             aws_access_key_id_secret_name,
             aws_secret_access_key_secret_name
@@ -160,6 +163,7 @@ def send_email_via_ses_enhanced(
             logger.error("Missing AWS credentials configuration for SES")
             return False
 
+        # Get AWS credentials from Secret Manager
         aws_access_key_id = get_secret(
             aws_access_key_id_secret_name or ""
         ).strip()
@@ -167,75 +171,44 @@ def send_email_via_ses_enhanced(
             aws_secret_access_key_secret_name or ""
         ).strip()
 
+        logger.info(
+            f"Retrieved AWS credentials for SES - Access Key ID length: "
+            f"{len(aws_access_key_id)}"
+        )
+
+        # Configure AWS session with credentials
         session = boto3.Session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key
         )
-        ses_client = session.client("ses", region_name="ap-northeast-1")
 
-        # Build MIME message (Text + HTML, Reply-To, List-Unsubscribe)
-        message = MIMEMultipart("alternative")
-        message["Subject"] = subject or "Re: お問い合わせへの返信"
-        message["From"] = sender  # Verified domain in SES required
-        message["To"] = recipient
-        message["Date"] = eutils.formatdate(localtime=True)
-        reply_to = os.getenv("REPLY_TO_EMAIL", sender)
-        if reply_to:
-            message["Reply-To"] = reply_to
+        # Create SES client
+        ses_client = session.client('ses', region_name='ap-northeast-1')
 
-        # List-Unsubscribe (ISP迷惑メール判定回避)
-        unsubscribe_mailto = os.getenv(
-            "LIST_UNSUBSCRIBE_MAILTO", ""
+        # Send email
+        response = ses_client.send_email(
+            Source=sender,
+            Destination={'ToAddresses': [recipient]},
+            Message={
+                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
+                'Body': {'Text': {'Data': body, 'Charset': 'UTF-8'}}
+            }
         )
-        unsubscribe_http = os.getenv(
-            "LIST_UNSUBSCRIBE_HTTP", ""
-        )
-        list_unsub_values = []
-        if unsubscribe_mailto:
-            list_unsub_values.append(f"<mailto:{unsubscribe_mailto}>")
-        if unsubscribe_http:
-            list_unsub_values.append(f"<{unsubscribe_http}>")
-        if list_unsub_values:
-            message["List-Unsubscribe"] = ", ".join(list_unsub_values)
-            # One-click unsubscribe signal
-            message["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
-        # Plain text
-        text_part = MIMEText(body or "", "plain", "utf-8")
-        # Simple HTML mirror (本文はエスケープして整形)
-        html_style = (
-            "white-space:pre-wrap; font-family:system-ui, -apple-system, "
-            "Segoe UI, Roboto, Helvetica, Arial"
-        )
-        html_body = (
-            f'<div><pre style="{html_style}">'
-            f"{_html.escape(body or '')}"
-            f"</pre></div>"
-        )
-        html_part = MIMEText(html_body, "html", "utf-8")
-
-        message.attach(text_part)
-        message.attach(html_part)
-
-        params = {
-            "RawMessage": {"Data": message.as_bytes()},
-            "Source": sender,
-            "Destinations": [recipient],
-        }
-
-        # Optional: use SES Configuration Set for monitoring
-        config_set = os.getenv("SES_CONFIGURATION_SET", "")
-        if config_set:
-            params["ConfigurationSetName"] = config_set
-
-        response = ses_client.send_raw_email(**params)
-        message_id = response.get("MessageId", "Unknown")
+        message_id = response.get('MessageId', 'Unknown')
         logger.info(
-            f"Successfully sent RAW email via SES. MessageId: {message_id}"
+            f"Successfully sent email via SES. MessageId: {message_id}"
         )
         return True
+
     except Exception as e:
-        logger.error(f"Failed to send RAW email via SES: {e}", exc_info=True)
+        logger.error(
+            f"Failed to send email via SES: {e}", exc_info=True
+        )
+        logger.error(
+            f"SES error details - sender: {sender}, "
+            f"recipient: {recipient}, subject: {subject}"
+        )
         return False
 
 
@@ -580,18 +553,13 @@ def slack_events():
                 # Get context information from DynamoDB
                 context = get_dynamodb_context(context_id)
                 if not context:
-                    error_msg = (
-                        f"Failed to retrieve context for context_id: "
-                        f"{context_id}. This may indicate: 1) The context "
-                        f"was not "
-                        f"saved during email processing, 2) The context_id is "
-                        f"incorrect, 3) DynamoDB access issues"
+                    logger.error(
+                        f"Failed to retrieve context for "
+                        f"context_id: {context_id}"
                     )
-                    logger.error(error_msg)
-                    return jsonify({
-                        "error": "Failed to retrieve context",
-                        "details": "Context ID not found in DynamoDB"
-                    }), 404
+                    return jsonify(
+                        {"error": "Failed to retrieve context"}
+                    ), 500
 
                 # Extract email information from context
                 sender_email = context.get("sender_email", "")
@@ -617,7 +585,7 @@ def slack_events():
                     ), 500
 
                 # Send email via SES
-                email_success = send_email_via_ses_enhanced(
+                email_success = send_email_via_ses(
                     sender=reply_sender,
                     recipient=sender_email,
                     subject=(
