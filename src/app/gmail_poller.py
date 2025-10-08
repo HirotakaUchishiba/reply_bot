@@ -11,6 +11,7 @@ from common.secrets import resolve_gmail_oauth, clear_secrets_cache
 from common.dynamodb_repo import get_context_item, put_context_item
 from common.pii import redact_and_map
 from slack.client import SlackClient, build_new_email_notification
+from common.inquiry_classifier import is_inquiry
 
 
 def _get_gmail_service(creds_dict: Dict[str, str]):
@@ -63,6 +64,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
         messages = msgs_resp.get("messages", [])
         count = 0
+
         for m in messages:
             # DynamoDB で重複排除（同じ Gmail message id の再処理をスキップ）
             context_id_candidate = m.get("id", "")
@@ -107,6 +109,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         break
             redacted, pii_map = redact_and_map(body_raw)
             context_id = msg.get("id", "")
+            if not is_inquiry(subject, redacted or body_raw):
+                log_info(
+                    "skip non-inquiry mail",
+                    context_id=context_id,
+                    subject=subject
+                    )
+                continue
             put_context_item(
                 {
                     "context_id": context_id,
