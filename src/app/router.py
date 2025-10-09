@@ -265,16 +265,23 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                                  redacted_body_preview=preview)
                         # Get best quality examples for the current inquiry
                         try:
-                            from common.dynamodb_repo import get_best_reply_examples
+                            from common.dynamodb_repo import (
+                                get_best_reply_examples
+                            )
                             recent_examples = get_best_reply_examples(
                                 current_inquiry=redacted_body,
-                                current_subject=item.get("subject", "") if item else "",
+                                current_subject=(
+                                    item.get("subject", "") if item else ""
+                                ),
                                 limit=3
                             )
                         except Exception as e:
-                            log_error("Failed to get best reply examples, using recent replies", error=str(e))
+                            log_error(
+                                "Failed to get best reply examples, "
+                                "using recent replies", error=str(e)
+                            )
                             recent_examples = get_recent_replies(limit=3)
-                        
+
                         draft = generate_reply_draft(
                             redacted_body,
                             recent_examples=recent_examples
