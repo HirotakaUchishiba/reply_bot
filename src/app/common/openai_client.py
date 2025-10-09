@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional
+from typing import List, Dict, Optional, Any
 
 import json
 import urllib.request
@@ -28,6 +28,7 @@ def _get_api_key() -> str:
 def generate_reply_draft(
     redacted_body: str,
     tone: Optional[str] = None,
+    recent_examples: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
     Generate a Japanese reply draft from redacted text.
@@ -47,6 +48,25 @@ def generate_reply_draft(
         redacted_body,
         "",
     ]
+    if recent_examples:
+        lines.append("過去の返信例を参考にしてください：")
+        for i, example in enumerate(recent_examples[:3], 1):
+            subject = example.get("subject", "")
+            body = example.get("body_redacted", "")
+            reply = example.get("final_reply", "")
+            if subject and body and reply:
+                lines.extend([
+                    f"例{i}:",
+                    f"  件名: {subject}",
+                    f"  本文: {body[:200]}",
+                    f"  返信: {reply}",
+                    ""
+                ])
+    lines.extend([
+        "問い合わせ本文（機微情報はプレースホルダーに置換済み）：",
+        redacted_body,
+        ""
+    ])
     if tone:
         lines.append(f"希望するトーン: {tone}")
         lines.append("")

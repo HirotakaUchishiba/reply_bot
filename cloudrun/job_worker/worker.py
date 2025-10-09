@@ -6,7 +6,8 @@ import json
 import os
 import sys
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional, List
+from config import JobWorkerConfig
 
 import urllib.request
 
@@ -52,10 +53,12 @@ except Exception:  # pragma: no cover
     sys.modules.setdefault("boto3", _boto3_mod)
     import boto3  # type: ignore  # noqa: E402  (now points to shim)
 
-from config import JobWorkerConfig
 
-
-def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
+def _call_openai(
+    redacted_body: str,
+    config: JobWorkerConfig,
+    recent_examples: Optional[List[Dict[str, Any]]] = None,
+) -> str:
     """Call OpenAI to generate a draft reply.
 
     Returns empty string on failure to keep the worker idempotent.
@@ -63,15 +66,30 @@ def _call_openai(redacted_body: str, config: JobWorkerConfig) -> str:
     if not redacted_body or not config.openai_api_key:
         return ""
 
+    # Build prompt with or without examples
+    if recent_examples:
+        examples_text = "\n".join([
+            f"例{i}: 問い合わせ「{ex.get('subject', '')}」→ "
+            f"返信「{ex.get('final_reply', '')[:100]}...」"
+            for i, ex in enumerate(recent_examples[:3], 1)
+        ])
+        content = (
+            f"過去の返信例を参考にしてください：\n{examples_text}\n\n"
+            f"あなたは日本語のCS担当者です。以下の問い合わせに対して、"
+            f"丁寧で簡潔な返信文案を作成してください。\n\n{redacted_body}"
+        )
+    else:
+        content = (
+            f"あなたは日本語のCS担当者です。以下の問い合わせに対して、"
+            f"丁寧で簡潔な返信文案を作成してください。\n\n{redacted_body}"
+        )
+
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
             {
                 "role": "user",
-                "content": (
-                    "あなたは日本語のCS担当者です。以下の問い合わせに対して、丁寧で簡潔な返信文案を作成してください。\n\n"
-                    + redacted_body
-                ),
+                "content": content,
             }
         ],
         "max_tokens": 400,
@@ -113,6 +131,85 @@ def _reidentify_pii(text: str, pii_map: Dict[str, str]) -> str:
     return out
 
 
+def _get_recent_replies(config: JobWorkerConfig, limit: int = 3) -> List[Dict[str, Any]]:
+    """Get recent replies from DynamoDB for context."""
+    try:
+        logger.info(f"Attempting to get recent replies from DynamoDB table: {config.ddb_table_name}")
+
+        # Use Workload Identity for AWS access
+        import os
+
+        # Get AWS credentials from Secret Manager
+        aws_access_key_id_secret_name = os.getenv("AWS_ACCESS_KEY_ID_SECRET_NAME")
+        aws_secret_access_key_secret_name = os.getenv("AWS_SECRET_ACCESS_KEY_SECRET_NAME")
+
+        if not all([aws_access_key_id_secret_name, aws_secret_access_key_secret_name]):
+            logger.error("Missing AWS credentials configuration")
+            return []
+
+        # Get AWS credentials from Secret Manager
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+
+        # Get AWS Access Key ID
+        aws_access_key_id_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_access_key_id_secret_name}/versions/latest"
+        aws_access_key_id_response = client.access_secret_version(request={"name": aws_access_key_id_path})
+        aws_access_key_id = aws_access_key_id_response.payload.data.decode("UTF-8").strip()
+
+        # Get AWS Secret Access Key
+        aws_secret_access_key_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_secret_access_key_secret_name}/versions/latest"
+        aws_secret_access_key_response = client.access_secret_version(request={"name": aws_secret_access_key_path})
+        aws_secret_access_key = aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
+
+        # Configure AWS session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key
+        )
+
+        # Create DynamoDB resource
+        dynamodb = session.resource('dynamodb', region_name=config.aws_region)
+        table = dynamodb.Table(config.ddb_table_name)
+        
+        # Scan for recent replies with quality filtering
+        response = table.scan(
+            FilterExpression="attribute_exists(final_reply) AND attribute_exists(replied_at)",
+            ProjectionExpression="context_id, subject, body_redacted, final_reply, replied_at, sender_email",
+            Limit=limit * 3  # Get more items for quality filtering
+        )
+
+        items = response.get("Items", [])
+
+        # Filter items by quality criteria
+        quality_items = []
+        for item in items:
+            final_reply = item.get("final_reply", "")
+            body_redacted = item.get("body_redacted", "")
+            
+            # Quality checks
+            if (len(final_reply) >= 20 and  # Minimum reply length
+                len(final_reply) <= 2000 and  # Maximum reply length
+                len(body_redacted) >= 10 and  # Minimum inquiry length
+                final_reply.strip() and  # Not just whitespace
+                body_redacted.strip()):  # Not just whitespace
+                quality_items.append(item)
+
+        # Sort by replied_at timestamp (most recent first)
+        sorted_items = sorted(
+            quality_items,
+            key=lambda x: x.get("replied_at", 0),
+            reverse=True
+        )
+
+        result = sorted_items[:limit]
+        logger.info(f"Retrieved {len(result)} recent replies from DynamoDB")
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to get recent replies from DynamoDB: {e}")
+        return []
+
+
 def _get_dynamodb_context(
     context_id: str, config: JobWorkerConfig
 ) -> Dict[str, Any]:
@@ -120,60 +217,58 @@ def _get_dynamodb_context(
         return {}
     try:
         logger.info(f"Attempting to get item from DynamoDB table: {config.ddb_table_name} for context_id: {context_id}")
-        
+
         # Use Workload Identity for AWS access
-        import boto3
         import os
-        from botocore.config import Config
-        
+
         # Get AWS credentials from Secret Manager
         aws_access_key_id_secret_name = os.getenv("AWS_ACCESS_KEY_ID_SECRET_NAME")
         aws_secret_access_key_secret_name = os.getenv("AWS_SECRET_ACCESS_KEY_SECRET_NAME")
-        
+
         if not all([aws_access_key_id_secret_name, aws_secret_access_key_secret_name]):
             logger.error("Missing AWS credentials configuration")
             raise ValueError("Missing AWS credentials configuration")
-        
+
         # Get AWS credentials from Secret Manager
         from google.cloud import secretmanager
         client = secretmanager.SecretManagerServiceClient()
-        
+
         # Get AWS Access Key ID
         aws_access_key_id_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_access_key_id_secret_name}/versions/latest"
         aws_access_key_id_response = client.access_secret_version(request={"name": aws_access_key_id_path})
         aws_access_key_id = aws_access_key_id_response.payload.data.decode("UTF-8").strip()
-        
+
         # Get AWS Secret Access Key
         aws_secret_access_key_path = f"projects/{os.getenv('GCP_PROJECT_ID')}/secrets/{aws_secret_access_key_secret_name}/versions/latest"
         aws_secret_access_key_response = client.access_secret_version(request={"name": aws_secret_access_key_path})
         aws_secret_access_key = aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
-        
+
         logger.info(f"Retrieved AWS credentials from Secret Manager - Access Key ID length: {len(aws_access_key_id)}, Secret Access Key length: {len(aws_secret_access_key)}")
-        
+
         # Configure AWS session with credentials
         session = boto3.Session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key
         )
-        
+
         # Create DynamoDB resource
         dynamodb = session.resource('dynamodb', region_name=config.aws_region)
         table = dynamodb.Table(config.ddb_table_name)
         resp = table.get_item(Key={"context_id": context_id})
         item = resp.get("Item") or {}
         logger.info(f"Retrieved item from DynamoDB: {bool(item)}")
-        
+
         if item:
             # Log the actual content retrieved from DynamoDB
             body_redacted = item.get("body_redacted", "")
             logger.info(f"DynamoDB content - body_redacted length: {len(body_redacted)}")
             logger.info(f"DynamoDB content - body_redacted: {body_redacted}")
-            
+
             pii_map = item.get("pii_map", "{}")
             logger.info(f"DynamoDB content - pii_map: {pii_map}")
-        
+
         return item
-        
+
     except Exception as e:
         logger.error(f"Failed to get DynamoDB context: {e}")
         # Temporarily return empty dict to allow fallback to test message
@@ -262,7 +357,6 @@ def main() -> None:
     pii_map = payload.get("pii_map") or {}
 
     logger.info(f"Job started with context_id: {context_id}, external_id: {external_id}")
-    
     if not context_id:
         logger.error("No context_id provided")
         sys.exit(1)
@@ -276,28 +370,57 @@ def main() -> None:
             pii_map = json.loads(str(raw_map))
         except Exception:
             pii_map = {}
-        
+
         # If still no body, use a test message temporarily
         if not redacted_body:
             redacted_body = "お客様から以下のようなお問い合わせをいただきました：\n\n商品の配送について質問があります。いつ頃届く予定でしょうか？\n\nよろしくお願いいたします。"
             logger.info("Using test message for OpenAI generation (DynamoDB access failed)")
 
+    # Get recent replies for context with error handling
+    recent_examples = []
+    try:
+        recent_examples = _get_recent_replies(cfg, limit=3)
+        logger.info(f"Retrieved {len(recent_examples)} recent examples for context")
+    except Exception as e:
+        logger.warning(f"Failed to retrieve recent examples, continuing without context: {e}")
+        recent_examples = []
+    
     logger.info(f"Calling OpenAI with redacted_body length: {len(redacted_body)}")
-    draft = _call_openai(redacted_body, cfg)
-    if not draft:
-        logger.error("OpenAI call failed or returned empty response")
-        sys.exit(0)
+    try:
+        draft = _call_openai(redacted_body, cfg, recent_examples)
+        if not draft:
+            logger.error("OpenAI call failed or returned empty response")
+            # Fallback to a basic response
+            draft = "お問い合わせいただき、ありがとうございます。\n\n内容を確認いたしました。詳細な回答につきましては、改めてご連絡いたします。\n\n何かご不明な点がございましたら、お気軽にお問い合わせください。"
+            logger.info("Using fallback response due to OpenAI failure")
+    except Exception as e:
+        logger.error(f"OpenAI call failed with exception: {e}")
+        # Fallback to a basic response
+        draft = "お問い合わせいただき、ありがとうございます。\n\n内容を確認いたしました。詳細な回答につきましては、改めてご連絡いたします。\n\n何かご不明な点がございましたら、お気軽にお問い合わせください。"
+        logger.info("Using fallback response due to OpenAI exception")
 
     logger.info(f"OpenAI generated draft with length: {len(draft)}")
-    final_text = _reidentify_pii(draft, pii_map)
-    logger.info(f"Final text after PII reidentification: {len(final_text)}")
     
-    ok = _update_slack_modal(external_id, context_id, final_text, cfg)
-    if ok:
-        logger.info("Successfully updated Slack modal")
-    else:
-        logger.error("Failed to update Slack modal")
-    
+    # PII reidentification with error handling
+    try:
+        final_text = _reidentify_pii(draft, pii_map)
+        logger.info(f"Final text after PII reidentification: {len(final_text)}")
+    except Exception as e:
+        logger.error(f"PII reidentification failed: {e}")
+        final_text = draft  # Use original draft if reidentification fails
+        logger.info("Using original draft due to PII reidentification failure")
+
+    # Update Slack modal with error handling
+    try:
+        ok = _update_slack_modal(external_id, context_id, final_text, cfg)
+        if ok:
+            logger.info("Successfully updated Slack modal")
+        else:
+            logger.error("Failed to update Slack modal")
+    except Exception as e:
+        logger.error(f"Slack modal update failed with exception: {e}")
+        ok = False
+
     sys.exit(0 if ok else 1)
 
 
