@@ -131,9 +131,7 @@ def _reidentify_pii(text: str, pii_map: Dict[str, str]) -> str:
     return out
 
 
-def _get_recent_replies(
-    config: JobWorkerConfig, limit: int = 3
-) -> List[Dict[str, Any]]:
+def _get_recent_replies(config: JobWorkerConfig, limit: int = 3) -> List[Dict[str, Any]]:
     """Get recent replies from DynamoDB for context."""
     try:
         logger.info(
@@ -181,9 +179,9 @@ def _get_recent_replies(
         aws_secret_access_key_response = client.access_secret_version(
             request={"name": aws_secret_access_key_path}
         )
-        aws_secret_access_key = (
-            aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
-        )
+        aws_secret_access_key = aws_secret_access_key_response.payload.data.decode(
+            "UTF-8"
+        ).strip()
 
         # Configure AWS session with credentials
         session = boto3.Session(
@@ -220,10 +218,10 @@ def _get_recent_replies(
 
             # Quality checks
             if (len(final_reply) >= 20 and  # Minimum reply length
-                    len(final_reply) <= 2000 and  # Maximum reply length
-                    len(body_redacted) >= 10 and  # Minimum inquiry length
-                    final_reply.strip() and  # Not just whitespace
-                    body_redacted.strip()):  # Not just whitespace
+                len(final_reply) <= 2000 and  # Maximum reply length
+                len(body_redacted) >= 10 and  # Minimum inquiry length
+                final_reply.strip() and  # Not just whitespace
+                body_redacted.strip()):  # Not just whitespace
                 quality_items.append(item)
 
         # Sort by replied_at timestamp (most recent first)
@@ -297,9 +295,9 @@ def _get_dynamodb_context(
         aws_secret_access_key_response = client.access_secret_version(
             request={"name": aws_secret_access_key_path}
         )
-        aws_secret_access_key = (
-            aws_secret_access_key_response.payload.data.decode("UTF-8").strip()
-        )
+        aws_secret_access_key = aws_secret_access_key_response.payload.data.decode(
+            "UTF-8"
+        ).strip()
 
         logger.info(
             f"Retrieved AWS credentials from Secret Manager - "
@@ -314,9 +312,7 @@ def _get_dynamodb_context(
         )
 
         # Create DynamoDB resource
-        dynamodb = session.resource(
-            'dynamodb', region_name=config.aws_region
-        )
+        dynamodb = session.resource('dynamodb', region_name=config.aws_region)
         table = dynamodb.Table(config.ddb_table_name)
         resp = table.get_item(Key={"context_id": context_id})
         item = resp.get("Item") or {}
@@ -326,7 +322,8 @@ def _get_dynamodb_context(
             # Log the actual content retrieved from DynamoDB
             body_redacted = item.get("body_redacted", "")
             logger.info(
-                f"DynamoDB content - body_redacted length: {len(body_redacted)}"
+                f"DynamoDB content - body_redacted length: "
+                f"{len(body_redacted)}"
             )
             logger.info(f"DynamoDB content - body_redacted: {body_redacted}")
 
@@ -338,9 +335,7 @@ def _get_dynamodb_context(
     except Exception as e:
         logger.error(f"Failed to get DynamoDB context: {e}")
         # Temporarily return empty dict to allow fallback to test message
-        logger.warning(
-            "Returning empty context due to DynamoDB access failure"
-        )
+        logger.warning("Returning empty context due to DynamoDB access failure")
         return {}
 
 
@@ -389,9 +384,7 @@ def _update_slack_modal(
                 },
             ],
         }
-        logger.info(
-            f"Calling Slack views_update with external_id: {external_id}"
-        )
+        logger.info(f"Calling Slack views_update with external_id: {external_id}")
         response = client.views_update(external_id=external_id, view=view)
         logger.info(f"Slack API response: {response}")
         return True
@@ -434,7 +427,8 @@ def main() -> None:
     pii_map = payload.get("pii_map") or {}
 
     logger.info(
-        f"Job started with context_id: {context_id}, external_id: {external_id}"
+        f"Job started with context_id: {context_id}, "
+        f"external_id: {external_id}"
     )
     if not context_id:
         logger.error("No context_id provided")
@@ -458,25 +452,22 @@ def main() -> None:
                 "よろしくお願いいたします。"
             )
             logger.info(
-                "Using test message for OpenAI generation (DynamoDB access failed)"
+                "Using test message for OpenAI generation "
+                "(DynamoDB access failed)"
             )
 
     # Get recent replies for context with error handling
     recent_examples = []
     try:
         recent_examples = _get_recent_replies(cfg, limit=3)
-        logger.info(
-            f"Retrieved {len(recent_examples)} recent examples for context"
-        )
+        logger.info(f"Retrieved {len(recent_examples)} recent examples for context")
     except Exception as e:
         logger.warning(
             f"Failed to retrieve recent examples, continuing without context: {e}"
         )
         recent_examples = []
 
-    logger.info(
-        f"Calling OpenAI with redacted_body length: {len(redacted_body)}"
-    )
+    logger.info(f"Calling OpenAI with redacted_body length: {len(redacted_body)}")
     try:
         draft = _call_openai(redacted_body, cfg, recent_examples)
         if not draft:
@@ -500,16 +491,12 @@ def main() -> None:
         )
         logger.info("Using fallback response due to OpenAI exception")
 
-    logger.info(
-        f"OpenAI generated draft with length: {len(draft)}"
-    )
+    logger.info(f"OpenAI generated draft with length: {len(draft)}")
 
     # PII reidentification with error handling
     try:
         final_text = _reidentify_pii(draft, pii_map)
-        logger.info(
-            f"Final text after PII reidentification: {len(final_text)}"
-        )
+        logger.info(f"Final text after PII reidentification: {len(final_text)}")
     except Exception as e:
         logger.error(f"PII reidentification failed: {e}")
         final_text = draft  # Use original draft if reidentification fails

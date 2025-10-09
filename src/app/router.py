@@ -26,6 +26,7 @@ try:
         build_new_email_notification,
     )
     from common.pii import redact_and_map, reidentify
+    from common.dynamodb_repo import get_recent_replies
 except ImportError:
     # テスト環境用の相対インポート
     from .common.config import load_config
@@ -262,7 +263,29 @@ def handle_event(event: Dict[str, Any]) -> Dict[str, Any]:
                                  context_id=context_id,
                                  time_remaining=time_remaining,
                                  redacted_body_preview=preview)
-                        draft = generate_reply_draft(redacted_body)
+                        # Get best quality examples for the current inquiry
+                        try:
+                            from common.dynamodb_repo import (
+                                get_best_reply_examples
+                            )
+                            recent_examples = get_best_reply_examples(
+                                current_inquiry=redacted_body,
+                                current_subject=(
+                                    item.get("subject", "") if item else ""
+                                ),
+                                limit=3
+                            )
+                        except Exception as e:
+                            log_error(
+                                "Failed to get best reply examples, "
+                                "using recent replies", error=str(e)
+                            )
+                            recent_examples = get_recent_replies(limit=3)
+
+                        draft = generate_reply_draft(
+                            redacted_body,
+                            recent_examples=recent_examples
+                            )
                         log_info("AI generation completed",
                                  context_id=context_id,
                                  has_draft=bool(draft),

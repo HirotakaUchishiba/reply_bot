@@ -10,18 +10,14 @@ try:
     from .reply_quality import get_best_examples, filter_quality_replies
 except ImportError:
     # Fallback for testing
-    def get_best_examples(
-        replies: List[Dict[str, Any]],
-        inquiry: str,
-        subject: str = "",
-        limit: int = 3
-    ) -> List[Dict[str, Any]]:
+    def get_best_examples(replies: List[Dict[str, Any]],
+                         inquiry: str,
+                         subject: str = "",
+                         limit: int = 3) -> List[Dict[str, Any]]:
         return replies[:limit]
 
-    def filter_quality_replies(
-        replies: List[Dict[str, Any]],
-        min_score: float = 0.6
-    ) -> List[Dict[str, Any]]:
+    def filter_quality_replies(replies: List[Dict[str, Any]],
+                              min_score: float = 0.6) -> List[Dict[str, Any]]:
         return replies
 
 
@@ -90,10 +86,10 @@ def get_recent_replies(limit: int = 5) -> List[Dict[str, Any]]:
 
         # Basic quality checks
         if (len(final_reply) >= 20 and  # Minimum reply length
-                len(final_reply) <= 2000 and  # Maximum reply length
-                len(body_redacted) >= 10 and  # Minimum inquiry length
-                final_reply.strip() and  # Not just whitespace
-                body_redacted.strip()):  # Not just whitespace
+            len(final_reply) <= 2000 and  # Maximum reply length
+            len(body_redacted) >= 10 and  # Minimum inquiry length
+            final_reply.strip() and  # Not just whitespace
+            body_redacted.strip()):  # Not just whitespace
             quality_items.append(item)
 
     # Apply advanced quality filtering
@@ -143,7 +139,7 @@ def get_similar_replies(
     # Remove common words
     stop_words = {
         "の", "は", "が", "を", "に", "で", "と", "から", "まで", "について",
-        "です", "ます", "お", "ご", "いただき", "ありがとう"
+        "です", "ます", "です", "ます", "お", "ご", "いただき", "ありがとう"
     }
     current_keywords = current_keywords - stop_words
 
@@ -204,13 +200,11 @@ def get_best_reply_examples(
         body_redacted = item.get("body_redacted", "")
 
         if (len(final_reply) >= 20 and
-                len(final_reply) <= 2000 and
-                len(body_redacted) >= 10 and
-                final_reply.strip() and
-                body_redacted.strip()):
+            len(final_reply) <= 2000 and
+            len(body_redacted) >= 10 and
+            final_reply.strip() and
+            body_redacted.strip()):
             valid_items.append(item)
 
     # Use quality assessment to get best examples
-    return get_best_examples(
-        valid_items, current_inquiry, current_subject, limit
-    )
+    return get_best_examples(valid_items, current_inquiry, current_subject, limit)
