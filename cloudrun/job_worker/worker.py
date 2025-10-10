@@ -326,7 +326,8 @@ def _get_dynamodb_context(
             # Log the actual content retrieved from DynamoDB
             body_redacted = item.get("body_redacted", "")
             logger.info(
-                f"DynamoDB content - body_redacted length: {len(body_redacted)}"
+                f"DynamoDB content - body_redacted length: "
+                f"{len(body_redacted)}"
             )
             logger.info(f"DynamoDB content - body_redacted: {body_redacted}")
 
@@ -434,7 +435,8 @@ def main() -> None:
     pii_map = payload.get("pii_map") or {}
 
     logger.info(
-        f"Job started with context_id: {context_id}, external_id: {external_id}"
+        f"Job started with context_id: {context_id}, "
+        f"external_id: {external_id}"
     )
     if not context_id:
         logger.error("No context_id provided")
@@ -458,7 +460,8 @@ def main() -> None:
                 "よろしくお願いいたします。"
             )
             logger.info(
-                "Using test message for OpenAI generation (DynamoDB access failed)"
+                "Using test message for OpenAI generation "
+                "(DynamoDB access failed)"
             )
 
     # Get recent replies for context with error handling
@@ -466,11 +469,13 @@ def main() -> None:
     try:
         recent_examples = _get_recent_replies(cfg, limit=3)
         logger.info(
-            f"Retrieved {len(recent_examples)} recent examples for context"
+            f"Retrieved {len(recent_examples)} recent examples "
+            f"for context"
         )
     except Exception as e:
         logger.warning(
-            f"Failed to retrieve recent examples, continuing without context: {e}"
+            f"Failed to retrieve recent examples, continuing "
+            f"without context: {e}"
         )
         recent_examples = []
 
